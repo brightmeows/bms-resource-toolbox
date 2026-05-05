@@ -1,7 +1,5 @@
 //! Benchmark for async filesystem operations.
 
-#![allow(missing_docs)]
-
 use bms_resource_toolbox::infra::fs::pack_move::is_dir_having_file;
 use criterion::{Criterion, criterion_group, criterion_main};
 use tokio::runtime::Runtime;

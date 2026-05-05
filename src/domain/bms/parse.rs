@@ -3,7 +3,8 @@
 //! This module handles parsing of BMS and BMSON chart files
 //! and extracting metadata like title, artist, and difficulty.
 
-#![allow(clippy::cast_possible_truncation)]
+// BMS timing values stored as integers; truncation is intentional.
+#![expect(clippy::cast_possible_truncation)]
 
 use crate::domain::bms::types::{BMSDifficulty, BMSInfo};
 use std::path::Path;
@@ -122,7 +123,6 @@ pub async fn parse_bmson_file<P: AsRef<Path>>(
 /// # Errors
 ///
 /// Returns `serde_json::Error` if the content is not valid JSON or has an unexpected structure.
-#[allow(clippy::cast_possible_truncation)]
 pub fn parse_bmson_content(content: &str) -> Result<BMSInfo, serde_json::Error> {
     let root: serde_json::Value = serde_json::from_str(content)?;
 

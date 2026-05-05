@@ -21,7 +21,7 @@ pub enum SoftSyncExec {
 /// whether extra files in the destination are removed, and whether identical source files
 /// are deleted after syncing.
 #[derive(Debug, Clone)]
-#[allow(clippy::struct_excessive_bools)]
+#[expect(clippy::struct_excessive_bools)]
 pub struct SoftSyncPreset {
     /// File extensions (without dot) allowed for syncing.
     pub allow_src_exts: Vec<String>,

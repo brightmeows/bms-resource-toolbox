@@ -14,7 +14,7 @@ fn run_async(fut: impl Future<Output = Result<(), DomainError>>) {
 }
 
 /// Dispatch a CLI command to the appropriate domain function.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 pub fn dispatch(cmd: &Commands) {
     match cmd {
         Commands::JumpToWorkInfo { event, work_id } => {

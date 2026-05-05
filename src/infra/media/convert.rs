@@ -33,7 +33,7 @@ async fn execute_shell_command_with_stderr(
 }
 
 /// Options for controlling audio transfer behavior.
-#[allow(clippy::struct_excessive_bools)]
+#[expect(clippy::struct_excessive_bools)]
 pub struct TransferOptions {
     /// Remove the original file after successful conversion.
     pub remove_origin_on_success: bool,
@@ -140,7 +140,6 @@ async fn should_skip_output(output: &Path, remove_existing: bool) -> bool {
     remove_existing_target(output, remove_existing).await;
     false
 }
-#[allow(clippy::type_complexity)]
 type HandleEntry = (tokio::task::JoinHandle<TaskResult>, bool);
 /// Transfer audio files in a directory using format presets with fallback.
 ///
@@ -158,7 +157,7 @@ type HandleEntry = (tokio::task::JoinHandle<TaskResult>, bool);
 ///
 /// May panic if a spawned task panics, which propagates through
 /// the `JoinHandle`.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 pub async fn transfer_audio_by_format_in_dir(
     dir: &Path,
     input_exts: &[&str],

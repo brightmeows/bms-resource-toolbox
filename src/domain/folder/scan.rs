@@ -65,7 +65,7 @@ fn sequence_matcher_ratio(a: &str, b: &str) -> f64 {
     }
 }
 
-#[allow(clippy::similar_names)]
+#[expect(clippy::similar_names)]
 fn find_longest_match(a: &[char], b: &[char]) -> usize {
     let mut best_len = 0;
     let mut best_ai = 0;

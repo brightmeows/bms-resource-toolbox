@@ -20,7 +20,6 @@ use crate::infra::fs::pack_move::is_dir_having_file;
 /// # Errors
 ///
 /// Returns an error if directory operations fail.
-#[allow(clippy::too_many_lines)]
 pub async fn unzip_numeric_to_bms_folder(
     pack_dir: &Path,
     cache_dir: &Path,

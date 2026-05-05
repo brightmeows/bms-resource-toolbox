@@ -116,7 +116,7 @@ impl PriorityDecoder {
 
 /// Get BMS file string with optional forced encoding.
 #[must_use]
-#[allow(clippy::similar_names)]
+#[expect(clippy::similar_names)]
 pub fn get_bms_file_str(file_bytes: &[u8], encoding: Option<&str>) -> String {
     let encodings: Vec<&str> = if let Some(enc) = encoding {
         let mut list = vec![enc];

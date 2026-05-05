@@ -259,7 +259,7 @@ pub async fn get_video_size(file_path: &Path) -> Option<(u32, u32)> {
 ///
 /// May panic if a spawned task panics, which propagates through
 /// the `JoinHandle`.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 pub async fn transfer_video_by_format_in_dir(
     dir: &Path,
     input_exts: &[&str],
