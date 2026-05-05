@@ -555,21 +555,13 @@ pub async fn merge_split_folders(root_dir: &Path) -> Result<(), DomainError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn temp_dir(prefix: &str) -> PathBuf {
-        let d = std::env::temp_dir().join("bms_test_pack").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_split_by_first_char() {
-        let root = temp_dir("split_char");
+        let parent = TempDir::new().unwrap();
+        let root = parent.path().join("split_char");
+        std::fs::create_dir_all(&root).unwrap();
         let a_dir = root.join("AlphaSong");
         let b_dir = root.join("BetaSong");
         std::fs::create_dir_all(&a_dir).unwrap();
@@ -577,24 +569,18 @@ mod tests {
 
         split_folders_with_first_char(&root).await.unwrap();
 
-        let parent = root.parent().unwrap();
-        let abcd_dir = parent.join(format!(
-            "{} [ABCD]",
-            root.file_name().unwrap().to_string_lossy()
-        ));
+        let abcd_dir = parent.path().join("split_char [ABCD]");
         assert!(abcd_dir.is_dir(), "ABCD group should exist");
         assert!(abcd_dir.join("AlphaSong").is_dir());
         assert!(abcd_dir.join("BetaSong").is_dir());
-        let _ = std::fs::remove_dir_all(parent.join(root.file_name().unwrap()));
-        let _ = std::fs::remove_dir_all(&abcd_dir);
     }
 
     #[tokio::test]
     async fn test_undo_split_pack() {
-        let root = temp_dir("undo_split");
-        let root_name = root.file_name().unwrap().to_string_lossy().to_string();
-        let parent = root.parent().unwrap();
-        let group_dir = parent.join(format!("{root_name} [ABCD]"));
+        let parent = TempDir::new().unwrap();
+        let root = parent.path().join("undo_split");
+        std::fs::create_dir_all(&root).unwrap();
+        let group_dir = parent.path().join("undo_split [ABCD]");
         std::fs::create_dir_all(&group_dir).unwrap();
         std::fs::write(group_dir.join("SongName.bms"), "#TITLE Song\n").unwrap();
 
@@ -604,65 +590,62 @@ mod tests {
             root.join("SongName.bms").is_file(),
             "file should be moved back to root"
         );
-        let _ = std::fs::remove_dir_all(parent.join(&root_name));
-        let _ = std::fs::remove_dir_all(&group_dir);
     }
 
     #[tokio::test]
     async fn test_move_works_in_pack() {
-        let src = temp_dir("move_src");
-        let dst = temp_dir("move_dst");
-        std::fs::create_dir_all(src.join("Song1")).unwrap();
-        std::fs::write(src.join("Song1/test.bms"), "#TITLE Song1\n").unwrap();
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        std::fs::create_dir_all(src.path().join("Song1")).unwrap();
+        std::fs::write(src.path().join("Song1/test.bms"), "#TITLE Song1\n").unwrap();
 
-        move_works_in_pack(&src, &dst).await.unwrap();
+        move_works_in_pack(src.path(), dst.path()).await.unwrap();
 
-        assert!(dst.join("Song1/test.bms").is_file());
-        let _ = std::fs::remove_dir_all(&src);
-        let _ = std::fs::remove_dir_all(&dst);
+        assert!(dst.path().join("Song1/test.bms").is_file());
     }
 
     #[tokio::test]
     async fn test_move_out_works() {
-        let root = temp_dir("move_out");
-        let sub = root.join("SubPack");
+        let root = TempDir::new().unwrap();
+        let sub = root.path().join("SubPack");
         let work = sub.join("Work1");
         std::fs::create_dir_all(&work).unwrap();
         std::fs::write(work.join("test.bms"), "#TITLE Work1\n").unwrap();
 
-        move_out_works(&root).await.unwrap();
+        move_out_works(root.path()).await.unwrap();
 
         assert!(
-            root.join("Work1/test.bms").is_file(),
+            root.path().join("Work1/test.bms").is_file(),
             "work should be one level up"
         );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_move_works_with_same_name() {
-        let src = temp_dir("same_name_src");
-        let dst = temp_dir("same_name_dst");
-        std::fs::create_dir_all(src.join("Song1")).unwrap();
-        std::fs::write(src.join("Song1/test.bms"), "#TITLE Song1\n").unwrap();
-        std::fs::create_dir_all(dst.join("Song1 [Artist]")).unwrap();
-        std::fs::write(dst.join("Song1 [Artist]/readme.txt"), "info").unwrap();
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        std::fs::create_dir_all(src.path().join("Song1")).unwrap();
+        std::fs::write(src.path().join("Song1/test.bms"), "#TITLE Song1\n").unwrap();
+        std::fs::create_dir_all(dst.path().join("Song1 [Artist]")).unwrap();
+        std::fs::write(dst.path().join("Song1 [Artist]/readme.txt"), "info").unwrap();
 
-        move_works_with_same_name(&src, &dst).await.unwrap();
+        move_works_with_same_name(src.path(), dst.path())
+            .await
+            .unwrap();
 
         assert!(
-            dst.join("Song1 [Artist]/test.bms").is_file(),
+            dst.path().join("Song1 [Artist]/test.bms").is_file(),
             "bms should be merged"
         );
-        let _ = std::fs::remove_dir_all(&src);
-        let _ = std::fs::remove_dir_all(&dst);
     }
 
     #[tokio::test]
     async fn test_move_works_with_same_name_to_siblings() {
-        let parent = temp_dir("sibling_parent");
-        let src = parent.join("SourcePack");
-        let sibling = parent.join("SiblingPack");
+        let parent = TempDir::new().unwrap();
+        let src = parent.path().join("SourcePack");
+        std::fs::create_dir_all(&src).unwrap();
+        let sibling = parent.path().join("SiblingPack");
+        std::fs::create_dir_all(&sibling).unwrap();
         std::fs::create_dir_all(src.join("Song1")).unwrap();
         std::fs::write(src.join("Song1/test.bms"), "#TITLE Song1\n").unwrap();
         std::fs::create_dir_all(sibling.join("Song1 [Artist]")).unwrap();
@@ -673,22 +656,20 @@ mod tests {
             sibling.join("Song1 [Artist]/test.bms").is_file(),
             "song should move to sibling"
         );
-        let _ = std::fs::remove_dir_all(&parent);
     }
 
     #[tokio::test]
     async fn test_merge_split_folders() {
-        let root = temp_dir("merge_split");
-        let cat_dir = root.join("Song [Artist]");
-        let base_dir = root.join("Song");
+        let root = TempDir::new().unwrap();
+        let cat_dir = root.path().join("Song [Artist]");
+        let base_dir = root.path().join("Song");
         std::fs::create_dir_all(&cat_dir).unwrap();
         std::fs::write(cat_dir.join("song.bms"), "#TITLE Song\n").unwrap();
         std::fs::create_dir_all(&base_dir).unwrap();
         std::fs::write(base_dir.join("readme.txt"), "info").unwrap();
 
-        merge_split_folders(&root).await.unwrap();
+        merge_split_folders(root.path()).await.unwrap();
 
         assert!(base_dir.join("song.bms").is_file());
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

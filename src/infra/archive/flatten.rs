@@ -193,77 +193,66 @@ async fn count_cache_contents(dir: &Path) -> (usize, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn unique_temp_dir(prefix: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join("bms_toolbox_tests").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_flatten_single_nested() {
-        let cache = unique_temp_dir("flt_nest");
-        let inner = cache.join("inner");
+        let cache = TempDir::new().unwrap();
+        let inner = cache.path().join("inner");
         tokio::fs::create_dir_all(&inner).await.unwrap();
         tokio::fs::write(inner.join("song.wav"), "data")
             .await
             .unwrap();
-        assert!(move_out_files_in_folder_in_cache_dir(&cache, &[".bms"]).await);
-        assert!(cache.join("song.wav").is_file());
+        assert!(move_out_files_in_folder_in_cache_dir(cache.path(), &[".bms"]).await);
+        assert!(cache.path().join("song.wav").is_file());
         assert!(!inner.exists());
-        let _ = tokio::fs::remove_dir_all(&cache).await;
     }
 
     #[tokio::test]
     async fn test_flatten_multi_level() {
-        let cache = unique_temp_dir("flt_multi");
-        let deep = cache.join("a").join("b").join("c");
+        let cache = TempDir::new().unwrap();
+        let deep = cache.path().join("a").join("b").join("c");
         tokio::fs::create_dir_all(&deep).await.unwrap();
         tokio::fs::write(deep.join("song.wav"), "data")
             .await
             .unwrap();
-        assert!(move_out_files_in_folder_in_cache_dir(&cache, &[".bms"]).await);
-        assert!(cache.join("song.wav").is_file());
-        let _ = tokio::fs::remove_dir_all(&cache).await;
+        assert!(move_out_files_in_folder_in_cache_dir(cache.path(), &[".bms"]).await);
+        assert!(cache.path().join("song.wav").is_file());
     }
 
     #[tokio::test]
     async fn test_flatten_macosx_removed() {
-        let cache = unique_temp_dir("flt_mac");
-        tokio::fs::create_dir_all(cache.join("__MACOSX"))
+        let cache = TempDir::new().unwrap();
+        tokio::fs::create_dir_all(cache.path().join("__MACOSX"))
             .await
             .unwrap();
-        tokio::fs::write(cache.join("song.wav"), "data")
+        tokio::fs::write(cache.path().join("song.wav"), "data")
             .await
             .unwrap();
-        assert!(move_out_files_in_folder_in_cache_dir(&cache, &[".bms"]).await);
-        assert!(!cache.join("__MACOSX").exists());
-        let _ = tokio::fs::remove_dir_all(&cache).await;
+        assert!(move_out_files_in_folder_in_cache_dir(cache.path(), &[".bms"]).await);
+        assert!(!cache.path().join("__MACOSX").exists());
     }
 
     #[tokio::test]
     async fn test_flatten_empty() {
-        let cache = unique_temp_dir("flt_empty");
-        assert!(!move_out_files_in_folder_in_cache_dir(&cache, &[".bms"]).await);
-        assert!(!cache.exists());
+        let cache = TempDir::new().unwrap();
+        let path = cache.path().to_path_buf();
+        assert!(!move_out_files_in_folder_in_cache_dir(&path, &[".bms"]).await);
+        // The function removes the cache dir when empty; manual cleanup not needed.
     }
 
     #[tokio::test]
     async fn test_flatten_already_flat() {
-        let cache = unique_temp_dir("flt_flat");
-        tokio::fs::write(cache.join("a.bms"), "data").await.unwrap();
-        assert!(move_out_files_in_folder_in_cache_dir(&cache, &[".bms"]).await);
-        let _ = tokio::fs::remove_dir_all(&cache).await;
+        let cache = TempDir::new().unwrap();
+        tokio::fs::write(cache.path().join("a.bms"), "data")
+            .await
+            .unwrap();
+        assert!(move_out_files_in_folder_in_cache_dir(cache.path(), &[".bms"]).await);
     }
 
     #[tokio::test]
     async fn test_get_num_set_file_names() {
-        let temp_dir = std::env::temp_dir();
-        let _names = get_num_set_file_names(&temp_dir).await;
+        let dir = TempDir::new().unwrap();
+        let _names = get_num_set_file_names(dir.path()).await;
     }
 }

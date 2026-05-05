@@ -99,58 +99,42 @@ pub async fn bms_dir_similarity(dir_path_a: &Path, dir_path_b: &Path) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn sim_temp_dir(prefix: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join("bms_sim_test").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_similarity_no_non_media() {
-        let dir_a = sim_temp_dir("sim_a");
-        let dir_b = sim_temp_dir("sim_b");
-        tokio::fs::write(dir_a.join("song.flac"), "data")
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        tokio::fs::write(dir_a.path().join("song.flac"), "data")
             .await
             .unwrap();
-        tokio::fs::write(dir_b.join("song.flac"), "data")
+        tokio::fs::write(dir_b.path().join("song.flac"), "data")
             .await
             .unwrap();
 
-        let sim = bms_dir_similarity(&dir_a, &dir_b).await;
+        let sim = bms_dir_similarity(dir_a.path(), dir_b.path()).await;
         assert!((sim - 0.0).abs() < 1e-9);
-
-        let _ = tokio::fs::remove_dir_all(&dir_a).await;
-        let _ = tokio::fs::remove_dir_all(&dir_b).await;
     }
 
     #[tokio::test]
     async fn test_similarity_normal() {
-        let dir_a = sim_temp_dir("sim_norm_a");
-        let dir_b = sim_temp_dir("sim_norm_b");
-        tokio::fs::write(dir_a.join("song.flac"), "data")
+        let dir_a = TempDir::new().unwrap();
+        let dir_b = TempDir::new().unwrap();
+        tokio::fs::write(dir_a.path().join("song.flac"), "data")
             .await
             .unwrap();
-        tokio::fs::write(dir_a.join("readme.txt"), "info")
+        tokio::fs::write(dir_a.path().join("readme.txt"), "info")
             .await
             .unwrap();
-        tokio::fs::write(dir_b.join("song.flac"), "data")
+        tokio::fs::write(dir_b.path().join("song.flac"), "data")
             .await
             .unwrap();
-        tokio::fs::write(dir_b.join("readme.txt"), "info")
+        tokio::fs::write(dir_b.path().join("readme.txt"), "info")
             .await
             .unwrap();
 
-        let sim = bms_dir_similarity(&dir_a, &dir_b).await;
+        let sim = bms_dir_similarity(dir_a.path(), dir_b.path()).await;
         assert!((sim - 1.0).abs() < 1e-9);
-
-        let _ = tokio::fs::remove_dir_all(&dir_a).await;
-        let _ = tokio::fs::remove_dir_all(&dir_b).await;
     }
 
     #[test]

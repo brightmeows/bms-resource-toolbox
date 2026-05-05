@@ -291,36 +291,24 @@ pub async fn pack_update_rawpack_to_hq(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn temp_dir(prefix: &str) -> PathBuf {
-        let d = std::env::temp_dir().join("bms_test_gen").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_pack_raw_to_hq_does_not_panic() {
-        let root = temp_dir("raw2hq");
-        let work = root.join("TestSong");
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("TestSong");
         std::fs::create_dir_all(&work).unwrap();
         std::fs::write(work.join("test.wav"), "fake-wav-data").unwrap();
-        let _result = pack_raw_to_hq(&root).await;
-        let _ = std::fs::remove_dir_all(&root);
+        let _result = pack_raw_to_hq(root.path()).await;
     }
 
     #[tokio::test]
     async fn test_pack_hq_to_lq_does_not_panic() {
-        let root = temp_dir("hq2lq");
-        let work = root.join("TestSong");
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("TestSong");
         std::fs::create_dir_all(&work).unwrap();
         std::fs::write(work.join("test.flac"), "fake-flac-data").unwrap();
         std::fs::write(work.join("test.mp4"), "fake-mp4-data").unwrap();
-        let _result = pack_hq_to_lq(&root).await;
-        let _ = std::fs::remove_dir_all(&root);
+        let _result = pack_hq_to_lq(root.path()).await;
     }
 }

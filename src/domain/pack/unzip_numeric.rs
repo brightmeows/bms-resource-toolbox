@@ -190,46 +190,39 @@ pub async fn set_file_num(dir: &Path, file_idx: usize, num: i32) -> Result<(), D
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn temp_dir(prefix: &str) -> PathBuf {
-        let d = std::env::temp_dir().join("bms_test_unzip").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_set_file_num_basic() {
-        let dir = temp_dir("setnum");
-        std::fs::write(dir.join("song.bms"), "#TITLE Song\n").unwrap();
-        set_file_num(&dir, 0, 42).await.unwrap();
-        assert!(dir.join("42 song.bms").is_file(), "should prefix with num");
-        assert!(!dir.join("song.bms").exists(), "original should be renamed");
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("song.bms"), "#TITLE Song\n").unwrap();
+        set_file_num(dir.path(), 0, 42).await.unwrap();
+        assert!(
+            dir.path().join("42 song.bms").is_file(),
+            "should prefix with num"
+        );
+        assert!(
+            !dir.path().join("song.bms").exists(),
+            "original should be renamed"
+        );
     }
 
     #[tokio::test]
     async fn test_set_file_num_skips_already_numbered() {
-        let dir = temp_dir("setnum_skip");
-        std::fs::write(dir.join("10 song.bms"), "#TITLE Song\n").unwrap();
-        set_file_num(&dir, 0, 99).await.unwrap();
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("10 song.bms"), "#TITLE Song\n").unwrap();
+        set_file_num(dir.path(), 0, 99).await.unwrap();
         assert!(
-            dir.join("10 song.bms").is_file(),
+            dir.path().join("10 song.bms").is_file(),
             "already numbered should be skipped"
         );
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]
     async fn test_set_file_num_skips_empty_files() {
-        let dir = temp_dir("setnum_empty");
-        std::fs::write(dir.join("song.bms"), "").unwrap();
-        set_file_num(&dir, 0, 1).await.unwrap();
-        assert!(dir.join("song.bms").is_file());
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("song.bms"), "").unwrap();
+        set_file_num(dir.path(), 0, 1).await.unwrap();
+        assert!(dir.path().join("song.bms").is_file());
     }
 }

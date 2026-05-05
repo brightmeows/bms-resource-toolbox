@@ -177,43 +177,30 @@ pub async fn transfer_video(root_dir: &Path, format: VideoFormat) -> Result<(), 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn temp_dir(prefix: &str) -> PathBuf {
-        let d = std::env::temp_dir().join("bms_test_transfer").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_transfer_audio_empty_root() {
-        let root = temp_dir("tr_audio_empty");
-        let result = transfer_audio(&root, AudioMode::WavToFlac).await;
+        let root = TempDir::new().unwrap();
+        let result = transfer_audio(root.path(), AudioMode::WavToFlac).await;
         assert!(result.is_ok(), "empty root should succeed");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_transfer_video_empty_root() {
-        let root = temp_dir("tr_video_empty");
-        let result = transfer_video(&root, VideoFormat::Avi).await;
+        let root = TempDir::new().unwrap();
+        let result = transfer_video(root.path(), VideoFormat::Avi).await;
         assert!(result.is_ok(), "empty root should succeed");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_transfer_audio_modes_all() {
         for mode in AudioMode::all() {
-            let root = temp_dir(&format!("tr_mode_{mode:?}"));
-            let work = root.join("Song");
+            let root = TempDir::new().unwrap();
+            let work = root.path().join("Song");
             std::fs::create_dir_all(&work).unwrap();
             std::fs::write(work.join("test.wav"), "data").unwrap();
-            let _result = transfer_audio(&root, *mode).await;
-            let _ = std::fs::remove_dir_all(&root);
+            let _result = transfer_audio(root.path(), *mode).await;
         }
     }
 }

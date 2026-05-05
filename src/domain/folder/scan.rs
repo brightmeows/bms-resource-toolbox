@@ -125,41 +125,28 @@ mod tests {
         assert!((sequence_matcher_ratio("a", "") - 0.0).abs() < 1e-6);
     }
 
-    use std::path::PathBuf;
-
-    fn temp_dir(prefix: &str) -> PathBuf {
-        let d = std::env::temp_dir().join("bms_test_scan").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_scan_similar_folders_detects_similar() {
-        let root = temp_dir("scan_sim");
-        std::fs::create_dir_all(root.join("MySong Hyper")).unwrap();
-        std::fs::create_dir_all(root.join("MySong Another")).unwrap();
-        scan_folder_similar_folders(&root, 0.5).await.unwrap();
-        let _ = std::fs::remove_dir_all(&root);
+        let root = TempDir::new().unwrap();
+        std::fs::create_dir_all(root.path().join("MySong Hyper")).unwrap();
+        std::fs::create_dir_all(root.path().join("MySong Another")).unwrap();
+        scan_folder_similar_folders(root.path(), 0.5).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_scan_similar_folders_no_false_positive() {
-        let root = temp_dir("scan_nosim");
-        std::fs::create_dir_all(root.join("Alpha")).unwrap();
-        std::fs::create_dir_all(root.join("Beta")).unwrap();
-        scan_folder_similar_folders(&root, 0.9).await.unwrap();
-        let _ = std::fs::remove_dir_all(&root);
+        let root = TempDir::new().unwrap();
+        std::fs::create_dir_all(root.path().join("Alpha")).unwrap();
+        std::fs::create_dir_all(root.path().join("Beta")).unwrap();
+        scan_folder_similar_folders(root.path(), 0.9).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_scan_empty_dir() {
-        let root = temp_dir("scan_empty");
-        scan_folder_similar_folders(&root, 0.7).await.unwrap();
-        let _ = std::fs::remove_dir_all(&root);
+        let root = TempDir::new().unwrap();
+        scan_folder_similar_folders(root.path(), 0.7).await.unwrap();
     }
 
     #[test]

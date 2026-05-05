@@ -134,52 +134,42 @@ pub async fn generate_work_info_table(root_dir: &Path) -> Result<(), DomainError
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn temp_dir(prefix: &str) -> PathBuf {
-        let d = std::env::temp_dir().join("bms_test_event").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use tempfile::TempDir;
 
     #[test]
     fn test_check_num_folder_exist() {
-        let root = temp_dir("check_exist");
-        std::fs::create_dir_all(root.join("1")).unwrap();
-        std::fs::create_dir_all(root.join("2")).unwrap();
-        check_num_folder(&root, 3);
-        let _ = std::fs::remove_dir_all(&root);
+        let root = TempDir::new().unwrap();
+        std::fs::create_dir_all(root.path().join("1")).unwrap();
+        std::fs::create_dir_all(root.path().join("2")).unwrap();
+        check_num_folder(root.path(), 3);
     }
 
     #[tokio::test]
     async fn test_create_num_folders() {
-        let root = temp_dir("create_num");
-        create_num_folders(&root, 5).await.unwrap();
+        let root = TempDir::new().unwrap();
+        create_num_folders(root.path(), 5).await.unwrap();
         for i in 1..=5 {
-            assert!(root.join(i.to_string()).is_dir(), "folder {i} should exist");
+            assert!(
+                root.path().join(i.to_string()).is_dir(),
+                "folder {i} should exist"
+            );
         }
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_create_num_folders_skip_conflict() {
-        let root = temp_dir("create_skip");
-        std::fs::create_dir_all(root.join("1. Title")).unwrap();
-        create_num_folders(&root, 3).await.unwrap();
-        assert!(root.join("2").is_dir());
-        assert!(root.join("3").is_dir());
-        let _ = std::fs::remove_dir_all(&root);
+        let root = TempDir::new().unwrap();
+        std::fs::create_dir_all(root.path().join("1. Title")).unwrap();
+        create_num_folders(root.path(), 3).await.unwrap();
+        assert!(root.path().join("2").is_dir());
+        assert!(root.path().join("3").is_dir());
     }
 
     #[tokio::test]
     async fn test_generate_work_info_table() {
-        let root = temp_dir("gen_xlsx");
+        let root = TempDir::new().unwrap();
         for i in 1..=3 {
-            let dir = root.join(i.to_string());
+            let dir = root.path().join(i.to_string());
             std::fs::create_dir_all(&dir).unwrap();
             std::fs::write(
                 dir.join("test.bms"),
@@ -187,9 +177,8 @@ mod tests {
             )
             .unwrap();
         }
-        generate_work_info_table(&root).await.unwrap();
-        let xlsx = root.join("bms_list.xlsx");
+        generate_work_info_table(root.path()).await.unwrap();
+        let xlsx = root.path().join("bms_list.xlsx");
         assert!(xlsx.is_file(), "xlsx should be generated");
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

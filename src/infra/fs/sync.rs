@@ -385,6 +385,7 @@ pub async fn sync_folder(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
     use tokio::test;
 
     #[test]
@@ -396,191 +397,200 @@ mod tests {
 
     #[test]
     async fn test_sync_folder_basic() {
-        let temp_dir = std::env::temp_dir();
-        let src_dir = temp_dir.join("sync_src");
-        let dst_dir = temp_dir.join("sync_dst");
+        let src_dir = TempDir::new().unwrap();
+        let dst_dir = TempDir::new().unwrap();
 
-        tokio::fs::create_dir_all(&src_dir).await.unwrap();
-        tokio::fs::create_dir_all(&dst_dir).await.unwrap();
-
-        tokio::fs::write(src_dir.join("test.txt"), "content")
+        tokio::fs::write(src_dir.path().join("test.txt"), "content")
             .await
             .unwrap();
 
         let preset = SoftSyncPreset::default();
-        let result = sync_folder(&src_dir, &dst_dir, &preset, 8).await;
-        assert!(result.is_ok());
-
-        let _ = tokio::fs::remove_dir_all(&src_dir).await;
-        let _ = tokio::fs::remove_dir_all(&dst_dir).await;
-    }
-
-    fn unique_temp_dir(prefix: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join("bms_toolbox_tests").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+        let result = sync_folder(src_dir.path(), dst_dir.path(), &preset, 8);
+        assert!(result.await.is_ok());
     }
 
     #[tokio::test]
     async fn test_sync_new_file_copied() {
-        let src = unique_temp_dir("sync_new");
-        let dst = unique_temp_dir("sync_new_dst");
-        tokio::fs::write(src.join("f.txt"), "content")
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        tokio::fs::write(src.path().join("f.txt"), "content")
             .await
             .unwrap();
-        sync_folder(&src, &dst, &SoftSyncPreset::default(), 8)
+        sync_folder(src.path(), dst.path(), &SoftSyncPreset::default(), 8)
             .await
             .unwrap();
-        assert!(dst.join("f.txt").is_file());
-        let _ = tokio::fs::remove_dir_all(&src).await;
-        let _ = tokio::fs::remove_dir_all(&dst).await;
+        assert!(dst.path().join("f.txt").is_file());
     }
 
     #[tokio::test]
     async fn test_sync_identical_skipped() {
-        let src = unique_temp_dir("sync_skip");
-        let dst = unique_temp_dir("sync_skip_dst");
-        tokio::fs::write(src.join("f.txt"), "same").await.unwrap();
-        tokio::fs::write(dst.join("f.txt"), "same").await.unwrap();
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        tokio::fs::write(src.path().join("f.txt"), "same")
+            .await
+            .unwrap();
+        tokio::fs::write(dst.path().join("f.txt"), "same")
+            .await
+            .unwrap();
         let preset = SoftSyncPreset {
             check_file_sha512: true,
             check_file_mtime: false,
             exec: SoftSyncExec::Copy,
             ..Default::default()
         };
-        sync_folder(&src, &dst, &preset, 8).await.unwrap();
+        sync_folder(src.path(), dst.path(), &preset, 8)
+            .await
+            .unwrap();
         assert_eq!(
-            tokio::fs::read_to_string(dst.join("f.txt")).await.unwrap(),
+            tokio::fs::read_to_string(dst.path().join("f.txt"))
+                .await
+                .unwrap(),
             "same"
         );
-        let _ = tokio::fs::remove_dir_all(&src).await;
-        let _ = tokio::fs::remove_dir_all(&dst).await;
     }
 
     #[tokio::test]
     async fn test_sync_append_dry_run() {
-        let src = unique_temp_dir("sync_dry_src");
-        let dst = unique_temp_dir("sync_dry_dst");
-        tokio::fs::write(src.join("f.txt"), "data").await.unwrap();
-        sync_folder(&src, &dst, &SYNC_PRESET_FOR_APPEND, 8)
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        tokio::fs::write(src.path().join("f.txt"), "data")
             .await
             .unwrap();
-        assert!(!dst.join("f.txt").is_file());
-        let _ = tokio::fs::remove_dir_all(&src).await;
-        let _ = tokio::fs::remove_dir_all(&dst).await;
+        sync_folder(src.path(), dst.path(), &SYNC_PRESET_FOR_APPEND, 8)
+            .await
+            .unwrap();
+        assert!(!dst.path().join("f.txt").is_file());
     }
 
     #[tokio::test]
     async fn test_sync_append_removes_src_same() {
-        let src = unique_temp_dir("sync_rm_src");
-        let dst = unique_temp_dir("sync_rm_dst");
-        tokio::fs::write(src.join("f.txt"), "same").await.unwrap();
-        tokio::fs::write(dst.join("f.txt"), "same").await.unwrap();
-        sync_folder(&src, &dst, &SYNC_PRESET_FOR_APPEND, 8)
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        tokio::fs::write(src.path().join("f.txt"), "same")
             .await
             .unwrap();
-        assert!(!src.join("f.txt").is_file());
-        let _ = tokio::fs::remove_dir_all(&src).await;
-        let _ = tokio::fs::remove_dir_all(&dst).await;
+        tokio::fs::write(dst.path().join("f.txt"), "same")
+            .await
+            .unwrap();
+        sync_folder(src.path(), dst.path(), &SYNC_PRESET_FOR_APPEND, 8)
+            .await
+            .unwrap();
+        assert!(!src.path().join("f.txt").is_file());
     }
 
     #[tokio::test]
     async fn test_sync_ext_filtering() {
-        let src = unique_temp_dir("sync_ext_src");
-        let dst = unique_temp_dir("sync_ext_dst");
-        tokio::fs::write(src.join("a.flac"), "data").await.unwrap();
-        tokio::fs::write(src.join("b.txt"), "data").await.unwrap();
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        tokio::fs::write(src.path().join("a.flac"), "data")
+            .await
+            .unwrap();
+        tokio::fs::write(src.path().join("b.txt"), "data")
+            .await
+            .unwrap();
         let preset = SoftSyncPreset {
             allow_src_exts: vec!["flac".into()],
             allow_other_exts: false,
             exec: SoftSyncExec::Copy,
             ..Default::default()
         };
-        sync_folder(&src, &dst, &preset, 8).await.unwrap();
-        assert!(dst.join("a.flac").is_file());
-        assert!(!dst.join("b.txt").exists());
-        let _ = tokio::fs::remove_dir_all(&src).await;
-        let _ = tokio::fs::remove_dir_all(&dst).await;
+        sync_folder(src.path(), dst.path(), &preset, 8)
+            .await
+            .unwrap();
+        assert!(dst.path().join("a.flac").is_file());
+        assert!(!dst.path().join("b.txt").exists());
     }
 
     #[tokio::test]
     async fn test_sync_remove_dst_extra() {
-        let src = unique_temp_dir("sync_rmd_src");
-        let dst = unique_temp_dir("sync_rmd_dst");
-        tokio::fs::write(src.join("k.txt"), "x").await.unwrap();
-        tokio::fs::write(dst.join("k.txt"), "x").await.unwrap();
-        tokio::fs::write(dst.join("e.txt"), "x").await.unwrap();
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        tokio::fs::write(src.path().join("k.txt"), "x")
+            .await
+            .unwrap();
+        tokio::fs::write(dst.path().join("k.txt"), "x")
+            .await
+            .unwrap();
+        tokio::fs::write(dst.path().join("e.txt"), "x")
+            .await
+            .unwrap();
         let preset = SoftSyncPreset {
             remove_dst_extra_files: true,
             exec: SoftSyncExec::Copy,
             ..Default::default()
         };
-        sync_folder(&src, &dst, &preset, 8).await.unwrap();
-        assert!(!dst.join("e.txt").exists());
-        let _ = tokio::fs::remove_dir_all(&src).await;
-        let _ = tokio::fs::remove_dir_all(&dst).await;
+        sync_folder(src.path(), dst.path(), &preset, 8)
+            .await
+            .unwrap();
+        assert!(!dst.path().join("e.txt").exists());
     }
 
     #[tokio::test]
     async fn test_sync_exec_move() {
-        let src = unique_temp_dir("sync_move_src");
-        let dst = unique_temp_dir("sync_move_dst");
-        tokio::fs::write(src.join("f.txt"), "data").await.unwrap();
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        tokio::fs::write(src.path().join("f.txt"), "data")
+            .await
+            .unwrap();
         let preset = SoftSyncPreset {
             exec: SoftSyncExec::Move,
             ..Default::default()
         };
-        sync_folder(&src, &dst, &preset, 8).await.unwrap();
-        assert!(dst.join("f.txt").is_file());
-        assert!(!src.join("f.txt").is_file());
-        let _ = tokio::fs::remove_dir_all(&src).await;
-        let _ = tokio::fs::remove_dir_all(&dst).await;
+        sync_folder(src.path(), dst.path(), &preset, 8)
+            .await
+            .unwrap();
+        assert!(dst.path().join("f.txt").is_file());
+        assert!(!src.path().join("f.txt").is_file());
     }
 
     #[tokio::test]
     async fn test_sync_preset_flac() {
-        let src = unique_temp_dir("sync_flac_src");
-        let dst = unique_temp_dir("sync_flac_dst");
-        tokio::fs::write(src.join("a.flac"), "data").await.unwrap();
-        tokio::fs::write(src.join("b.txt"), "data").await.unwrap();
-        sync_folder(&src, &dst, &SYNC_PRESET_FLAC, 8).await.unwrap();
-        assert!(dst.join("a.flac").is_file());
-        assert!(!dst.join("b.txt").exists());
-        let _ = tokio::fs::remove_dir_all(&src).await;
-        let _ = tokio::fs::remove_dir_all(&dst).await;
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        tokio::fs::write(src.path().join("a.flac"), "data")
+            .await
+            .unwrap();
+        tokio::fs::write(src.path().join("b.txt"), "data")
+            .await
+            .unwrap();
+        sync_folder(src.path(), dst.path(), &SYNC_PRESET_FLAC, 8)
+            .await
+            .unwrap();
+        assert!(dst.path().join("a.flac").is_file());
+        assert!(!dst.path().join("b.txt").exists());
     }
 
     #[tokio::test]
     async fn test_sync_preset_mp4_avi() {
-        let src = unique_temp_dir("sync_mp4_src");
-        let dst = unique_temp_dir("sync_mp4_dst");
-        tokio::fs::write(src.join("v.mp4"), "data").await.unwrap();
-        tokio::fs::write(src.join("v.avi"), "data").await.unwrap();
-        tokio::fs::write(src.join("n.txt"), "data").await.unwrap();
-        sync_folder(&src, &dst, &SYNC_PRESET_MP4_AVI, 8)
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        tokio::fs::write(src.path().join("v.mp4"), "data")
             .await
             .unwrap();
-        assert!(dst.join("v.mp4").is_file());
-        assert!(dst.join("v.avi").is_file());
-        assert!(!dst.join("n.txt").exists());
-        let _ = tokio::fs::remove_dir_all(&src).await;
-        let _ = tokio::fs::remove_dir_all(&dst).await;
+        tokio::fs::write(src.path().join("v.avi"), "data")
+            .await
+            .unwrap();
+        tokio::fs::write(src.path().join("n.txt"), "data")
+            .await
+            .unwrap();
+        sync_folder(src.path(), dst.path(), &SYNC_PRESET_MP4_AVI, 8)
+            .await
+            .unwrap();
+        assert!(dst.path().join("v.mp4").is_file());
+        assert!(dst.path().join("v.avi").is_file());
+        assert!(!dst.path().join("n.txt").exists());
     }
 
     #[tokio::test]
     async fn test_sync_preset_cache() {
-        let src = unique_temp_dir("sync_cache_src");
-        let dst = unique_temp_dir("sync_cache_dst");
-        tokio::fs::write(src.join("a.flac"), "data").await.unwrap();
-        sync_folder(&src, &dst, &SYNC_PRESET_CACHE, 8)
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        tokio::fs::write(src.path().join("a.flac"), "data")
             .await
             .unwrap();
-        assert!(!dst.join("a.flac").is_file());
-        let _ = tokio::fs::remove_dir_all(&src).await;
-        let _ = tokio::fs::remove_dir_all(&dst).await;
+        sync_folder(src.path(), dst.path(), &SYNC_PRESET_CACHE, 8)
+            .await
+            .unwrap();
+        assert!(!dst.path().join("a.flac").is_file());
     }
 }

@@ -306,33 +306,14 @@ mod tests {
     use super::*;
     use std::fs::File;
     use std::io::Write;
-    use std::path::PathBuf;
-
-    fn create_test_dir() -> PathBuf {
-        let temp_dir = std::env::temp_dir();
-        let unique_name = format!(
-            "test_is_dir_having_file_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
-        let path = temp_dir.join(unique_name);
-        std::fs::create_dir_all(&path).unwrap();
-        path
-    }
-
-    fn cleanup_test_dir(path: &Path) {
-        let _ = std::fs::remove_dir_all(path);
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_replace_action_rename_no_conflict() {
-        let dir = create_test_dir();
-        let src_file = dir.join("test.txt");
-        let dst_dir = create_test_dir();
-        let dst_file = dst_dir.join("test.txt");
+        let dir = TempDir::new().unwrap();
+        let src_file = dir.path().join("test.txt");
+        let dst_dir = TempDir::new().unwrap();
+        let dst_file = dst_dir.path().join("test.txt");
         std::fs::write(&src_file, "content").unwrap();
 
         let opts = ReplaceOptions {
@@ -343,17 +324,14 @@ mod tests {
         assert!(result.is_some());
         let (_, planned_dst) = result.unwrap();
         assert_eq!(planned_dst, dst_file);
-
-        cleanup_test_dir(&dir);
-        cleanup_test_dir(&dst_dir);
     }
 
     #[tokio::test]
     async fn test_replace_action_rename_numbered() {
-        let dir = create_test_dir();
-        let src_file = dir.join("test.txt");
-        let dst_dir = create_test_dir();
-        let dst_file = dst_dir.join("test.txt");
+        let dir = TempDir::new().unwrap();
+        let src_file = dir.path().join("test.txt");
+        let dst_dir = TempDir::new().unwrap();
+        let dst_file = dst_dir.path().join("test.txt");
         std::fs::write(&src_file, "content2").unwrap();
         std::fs::write(&dst_file, "content1").unwrap();
 
@@ -366,17 +344,14 @@ mod tests {
         let (_, planned_dst) = result.unwrap();
         let expected = dst_file.with_file_name("test.0.txt");
         assert_eq!(planned_dst, expected);
-
-        cleanup_test_dir(&dir);
-        cleanup_test_dir(&dst_dir);
     }
 
     #[tokio::test]
     async fn test_replace_action_rename_same_content_skip() {
-        let dir = create_test_dir();
-        let src_file = dir.join("test.txt");
-        let dst_dir = create_test_dir();
-        let dst_file = dst_dir.join("test.txt");
+        let dir = TempDir::new().unwrap();
+        let src_file = dir.path().join("test.txt");
+        let dst_dir = TempDir::new().unwrap();
+        let dst_file = dst_dir.path().join("test.txt");
         std::fs::write(&src_file, "same").unwrap();
         std::fs::write(&dst_file, "same").unwrap();
 
@@ -386,21 +361,22 @@ mod tests {
         };
         let result = plan_move_file(&src_file, &dst_file, &opts).await;
         assert!(result.is_none());
-
-        cleanup_test_dir(&dir);
-        cleanup_test_dir(&dst_dir);
     }
 
     #[tokio::test]
     async fn test_replace_action_rename_exhausted() {
-        let dir = create_test_dir();
-        let src_file = dir.join("test.txt");
-        let dst_dir = create_test_dir();
-        let dst_file = dst_dir.join("test.txt");
+        let dir = TempDir::new().unwrap();
+        let src_file = dir.path().join("test.txt");
+        let dst_dir = TempDir::new().unwrap();
+        let dst_file = dst_dir.path().join("test.txt");
         std::fs::write(&src_file, "unique").unwrap();
         std::fs::write(&dst_file, "content1").unwrap();
         for i in 0..100 {
-            std::fs::write(dst_dir.join(format!("test.{i}.txt")), format!("other{i}")).unwrap();
+            std::fs::write(
+                dst_dir.path().join(format!("test.{i}.txt")),
+                format!("other{i}"),
+            )
+            .unwrap();
         }
 
         let opts = ReplaceOptions {
@@ -409,50 +385,42 @@ mod tests {
         };
         let result = plan_move_file(&src_file, &dst_file, &opts).await;
         assert!(result.is_none());
-
-        cleanup_test_dir(&dir);
-        cleanup_test_dir(&dst_dir);
     }
 
     #[tokio::test]
     async fn test_move_to_non_existent_dest_as_whole() {
-        let src = create_test_dir();
-        let non_exist = create_test_dir();
-        let dst = non_exist.join("moved_whole");
+        let src = TempDir::new().unwrap();
+        let non_exist = TempDir::new().unwrap();
+        let dst = non_exist.path().join("moved_whole");
         let _ = std::fs::remove_dir_all(&dst);
-        std::fs::write(src.join("a.txt"), "data").unwrap();
-        std::fs::write(src.join("b.txt"), "data").unwrap();
+        std::fs::write(src.path().join("a.txt"), "data").unwrap();
+        std::fs::write(src.path().join("b.txt"), "data").unwrap();
 
         let opts = MoveOptions::default();
         let rep = ReplaceOptions::default();
-        move_elements_across_dir(&src, &dst, opts, &rep)
+        move_elements_across_dir(src.path(), &dst, opts, &rep)
             .await
             .unwrap();
 
-        assert!(!src.exists());
+        assert!(!src.path().exists());
         assert!(dst.is_dir());
         assert!(dst.join("a.txt").is_file());
         assert!(dst.join("b.txt").is_file());
-
-        let _ = std::fs::remove_dir_all(&non_exist);
     }
 
     #[tokio::test]
     async fn test_is_dir_having_file() {
-        let dir = create_test_dir();
-        let file_path = dir.join("test.txt");
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("test.txt");
         let mut file = File::create(&file_path).unwrap();
         file.write_all(b"test content").unwrap();
         drop(file);
 
-        assert!(is_dir_having_file(&dir).await);
+        assert!(is_dir_having_file(dir.path()).await);
 
         assert!(!is_dir_having_file(&PathBuf::from("/nonexistent")).await);
 
-        let empty_dir = create_test_dir();
-        assert!(!is_dir_having_file(&empty_dir).await);
-
-        cleanup_test_dir(&dir);
-        cleanup_test_dir(&empty_dir);
+        let empty_dir = TempDir::new().unwrap();
+        assert!(!is_dir_having_file(empty_dir.path()).await);
     }
 }

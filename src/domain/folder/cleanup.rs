@@ -155,83 +155,90 @@ pub async fn remove_zero_sized_media_files(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn temp_dir(prefix: &str) -> PathBuf {
-        let d = std::env::temp_dir().join("bms_test_cleanup").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_copy_numbered_workdir_names() {
-        let src = temp_dir("copy_num_src");
-        let dst = temp_dir("copy_num_dst");
-        std::fs::create_dir_all(src.join("1. Song A [Artist]")).unwrap();
-        std::fs::create_dir_all(src.join("2. Song B [Artist]")).unwrap();
-        std::fs::create_dir_all(dst.join("1")).unwrap();
-        std::fs::create_dir_all(dst.join("2")).unwrap();
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        std::fs::create_dir_all(src.path().join("1. Song A [Artist]")).unwrap();
+        std::fs::create_dir_all(src.path().join("2. Song B [Artist]")).unwrap();
+        std::fs::create_dir_all(dst.path().join("1")).unwrap();
+        std::fs::create_dir_all(dst.path().join("2")).unwrap();
 
-        copy_numbered_workdir_names(&src, &dst).await.unwrap();
+        copy_numbered_workdir_names(src.path(), dst.path())
+            .await
+            .unwrap();
 
         assert!(
-            dst.join("1. Song A [Artist]").is_dir(),
+            dst.path().join("1. Song A [Artist]").is_dir(),
             "should rename 1 -> 1. Song A"
         );
         assert!(
-            dst.join("2. Song B [Artist]").is_dir(),
+            dst.path().join("2. Song B [Artist]").is_dir(),
             "should rename 2 -> 2. Song B"
         );
-        assert!(!dst.join("1").exists(), "original 1 should be renamed");
-        let _ = std::fs::remove_dir_all(&src);
-        let _ = std::fs::remove_dir_all(&dst);
+        assert!(
+            !dst.path().join("1").exists(),
+            "original 1 should be renamed"
+        );
     }
 
     #[tokio::test]
     async fn test_copy_numbered_workdir_skip_non_numeric_dst() {
-        let src = temp_dir("copy_skip_src");
-        let dst = temp_dir("copy_skip_dst");
-        std::fs::create_dir_all(src.join("1. Title")).unwrap();
-        std::fs::create_dir_all(dst.join("MySong")).unwrap();
+        let src = TempDir::new().unwrap();
+        let dst = TempDir::new().unwrap();
+        std::fs::create_dir_all(src.path().join("1. Title")).unwrap();
+        std::fs::create_dir_all(dst.path().join("MySong")).unwrap();
 
-        copy_numbered_workdir_names(&src, &dst).await.unwrap();
+        copy_numbered_workdir_names(src.path(), dst.path())
+            .await
+            .unwrap();
 
-        assert!(dst.join("MySong").is_dir(), "non-numeric dir unchanged");
-        let _ = std::fs::remove_dir_all(&src);
-        let _ = std::fs::remove_dir_all(&dst);
+        assert!(
+            dst.path().join("MySong").is_dir(),
+            "non-numeric dir unchanged"
+        );
     }
 
     #[tokio::test]
     async fn test_remove_zero_sized_media() {
-        let root = temp_dir("rmzero");
-        std::fs::write(root.join("empty.wav"), "").unwrap();
-        std::fs::write(root.join("full.wav"), "data").unwrap();
-        std::fs::write(root.join("desktop.ini"), "").unwrap();
-        std::fs::write(root.join("normal.txt"), "text").unwrap();
+        let root = TempDir::new().unwrap();
+        std::fs::write(root.path().join("empty.wav"), "").unwrap();
+        std::fs::write(root.path().join("full.wav"), "data").unwrap();
+        std::fs::write(root.path().join("desktop.ini"), "").unwrap();
+        std::fs::write(root.path().join("normal.txt"), "text").unwrap();
 
-        remove_zero_sized_media_files(&root, false).await.unwrap();
+        remove_zero_sized_media_files(root.path(), false)
+            .await
+            .unwrap();
 
-        assert!(!root.join("empty.wav").exists(), "zero-sized media removed");
-        assert!(!root.join("desktop.ini").exists(), "temp file removed");
-        assert!(root.join("full.wav").is_file(), "non-zero media kept");
-        assert!(root.join("normal.txt").is_file(), "non-media kept");
-        let _ = std::fs::remove_dir_all(&root);
+        assert!(
+            !root.path().join("empty.wav").exists(),
+            "zero-sized media removed"
+        );
+        assert!(
+            !root.path().join("desktop.ini").exists(),
+            "temp file removed"
+        );
+        assert!(
+            root.path().join("full.wav").is_file(),
+            "non-zero media kept"
+        );
+        assert!(root.path().join("normal.txt").is_file(), "non-media kept");
     }
 
     #[tokio::test]
     async fn test_remove_zero_sized_recursive() {
-        let root = temp_dir("rmzero_rec");
-        let sub = root.join("sub");
+        let root = TempDir::new().unwrap();
+        let sub = root.path().join("sub");
         std::fs::create_dir_all(&sub).unwrap();
         std::fs::write(sub.join("empty.mp4"), "").unwrap();
 
-        remove_zero_sized_media_files(&root, false).await.unwrap();
+        remove_zero_sized_media_files(root.path(), false)
+            .await
+            .unwrap();
 
         assert!(!sub.join("empty.mp4").exists());
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

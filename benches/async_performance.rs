@@ -6,10 +6,10 @@ use tokio::runtime::Runtime;
 
 fn benchmark_async_is_dir_having_file(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let temp_dir = std::env::temp_dir();
 
     c.bench_function("async_is_dir_having_file", |b| {
-        b.iter(|| rt.block_on(is_dir_having_file(&temp_dir)));
+        let temp_dir = tempfile::tempdir().unwrap();
+        b.iter(|| rt.block_on(is_dir_having_file(temp_dir.path())));
     });
 }
 

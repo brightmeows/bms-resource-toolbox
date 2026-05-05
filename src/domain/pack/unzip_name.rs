@@ -171,32 +171,21 @@ async fn move_original_to_bofttpacks(file_path: &Path, pack_dir: &Path, file_nam
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn temp_dir(prefix: &str) -> PathBuf {
-        let d = std::env::temp_dir()
-            .join("bms_test_unzipname")
-            .join(format!("{}_{}", prefix, std::process::id()));
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_unzip_with_name_creates_dirs() {
-        let pack = temp_dir("unzip_name_pack");
-        let cache = temp_dir("unzip_name_cache");
-        let root = temp_dir("unzip_name_root");
-        let zip_path = pack.join("TestPack.zip");
+        let pack = TempDir::new().unwrap();
+        let cache = TempDir::new().unwrap();
+        let root = TempDir::new().unwrap();
+        let zip_path = pack.path().join("TestPack.zip");
         let file = std::fs::File::create(&zip_path).unwrap();
         let mut zip = zip::ZipWriter::new(file);
         zip.add_directory::<_, ()>("song/", zip::write::FileOptions::default())
             .unwrap();
         zip.finish().unwrap();
-        unzip_with_name_to_bms_folder(&pack, &cache, &root)
+        unzip_with_name_to_bms_folder(pack.path(), cache.path(), root.path())
             .await
             .unwrap();
-        let _ = std::fs::remove_dir_all(&pack);
-        let _ = std::fs::remove_dir_all(&cache);
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

@@ -4,20 +4,12 @@ use bms_resource_toolbox::domain::bms::dir::get_dir_bms_info;
 use bms_resource_toolbox::domain::bms::encoding::get_bms_file_str;
 use bms_resource_toolbox::domain::bms::parse::parse_bms_content;
 use bms_resource_toolbox::domain::bms::types::BMSDifficulty;
-use std::path::PathBuf;
-
-fn unique_temp_dir(prefix: &str) -> PathBuf {
-    let dir = std::env::temp_dir()
-        .join("bms_toolbox_tests")
-        .join(format!("{prefix}_{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
+use tempfile::TempDir;
 
 #[tokio::test]
 async fn test_read_bms_file_utf8() {
-    let dir = unique_temp_dir("read_utf8");
-    let path = dir.join("test.bms");
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("test.bms");
     tokio::fs::write(&path, "#TITLE テスト曲\n#ARTIST テスト\n")
         .await
         .unwrap();
@@ -26,13 +18,12 @@ async fn test_read_bms_file_utf8() {
     let content = get_bms_file_str(&bytes, None);
     assert!(content.contains("#TITLE"));
     assert!(content.contains("テスト曲"));
-    let _ = tokio::fs::remove_dir_all(&dir).await;
 }
 
 #[tokio::test]
 async fn test_read_bms_file_ascii() {
-    let dir = unique_temp_dir("read_ascii");
-    let path = dir.join("test.bms");
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("test.bms");
     tokio::fs::write(&path, "#TITLE Test Song\n#ARTIST Artist\n")
         .await
         .unwrap();
@@ -40,22 +31,20 @@ async fn test_read_bms_file_ascii() {
     let bytes = tokio::fs::read(&path).await.unwrap();
     let content = get_bms_file_str(&bytes, None);
     assert!(content.contains("#TITLE Test Song"));
-    let _ = tokio::fs::remove_dir_all(&dir).await;
 }
 
 #[tokio::test]
 async fn test_read_bms_file_nonexistent() {
-    let path = std::env::temp_dir()
-        .join("bms_toolbox_tests")
-        .join("nonexistent_read_48291.bms");
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("nonexistent.bms");
     let result = tokio::fs::read(&path).await;
     assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_parse_bms_file_full_metadata() {
-    let dir = unique_temp_dir("parse_full");
-    let path = dir.join("test.bms");
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("test.bms");
     let content = "\
 #TITLE Test Song
 #ARTIST Test Artist
@@ -77,13 +66,12 @@ async fn test_parse_bms_file_full_metadata() {
     assert_eq!(info.difficulty, BMSDifficulty::Another);
     assert_eq!(info.total, None);
     assert_eq!(info.stage_file, None);
-    let _ = tokio::fs::remove_dir_all(&dir).await;
 }
 
 #[tokio::test]
 async fn test_parse_bms_file_minimal() {
-    let dir = unique_temp_dir("parse_min");
-    let path = dir.join("test.bms");
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("test.bms");
     tokio::fs::write(&path, "#TITLE Only Title\n")
         .await
         .unwrap();
@@ -95,52 +83,53 @@ async fn test_parse_bms_file_minimal() {
     assert_eq!(info.artist, "");
     assert_eq!(info.playlevel, 0);
     assert_eq!(info.total, None);
-    let _ = tokio::fs::remove_dir_all(&dir).await;
 }
 
 #[tokio::test]
 async fn test_parse_bms_file_nonexistent() {
-    let path = std::env::temp_dir()
-        .join("bms_toolbox_tests")
-        .join("nonexistent_parse_48291.bms");
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("nonexistent.bms");
     let result = tokio::fs::read(&path).await;
     assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_get_dir_bms_info_basic() {
-    let dir = unique_temp_dir("bms_info");
+    let dir = TempDir::new().unwrap();
     tokio::fs::write(
-        dir.join("test.bms"),
+        dir.path().join("test.bms"),
         "#TITLE Title\n#ARTIST Artist\n#GENRE Genre\n",
     )
     .await
     .unwrap();
-    let info = get_dir_bms_info(&dir).await.unwrap();
+    let info = get_dir_bms_info(dir.path()).await.unwrap();
     assert_eq!(info.title, "Title");
     assert_eq!(info.artist, "Artist");
     assert_eq!(info.genre, "Genre");
-    let _ = tokio::fs::remove_dir_all(&dir).await;
 }
 
 #[tokio::test]
 async fn test_get_dir_bms_info_none() {
-    let dir = unique_temp_dir("bms_empty");
-    assert!(get_dir_bms_info(&dir).await.is_none());
-    let _ = tokio::fs::remove_dir_all(&dir).await;
+    let dir = TempDir::new().unwrap();
+    assert!(get_dir_bms_info(dir.path()).await.is_none());
 }
 
 #[tokio::test]
 async fn test_get_dir_bms_info_multiple() {
-    let dir = unique_temp_dir("bms_multi");
-    tokio::fs::write(dir.join("d1.bms"), "#TITLE Song [Easy]\n#ARTIST Common\n")
-        .await
-        .unwrap();
-    tokio::fs::write(dir.join("d2.bms"), "#TITLE Song [Hard]\n#ARTIST Common\n")
-        .await
-        .unwrap();
-    let info = get_dir_bms_info(&dir).await.unwrap();
+    let dir = TempDir::new().unwrap();
+    tokio::fs::write(
+        dir.path().join("d1.bms"),
+        "#TITLE Song [Easy]\n#ARTIST Common\n",
+    )
+    .await
+    .unwrap();
+    tokio::fs::write(
+        dir.path().join("d2.bms"),
+        "#TITLE Song [Hard]\n#ARTIST Common\n",
+    )
+    .await
+    .unwrap();
+    let info = get_dir_bms_info(dir.path()).await.unwrap();
     assert_eq!(info.title, "Song");
     assert_eq!(info.artist, "Common");
-    let _ = tokio::fs::remove_dir_all(&dir).await;
 }

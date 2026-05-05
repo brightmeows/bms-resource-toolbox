@@ -331,22 +331,12 @@ pub async fn undo_set_name(root_dir: &Path) -> Result<(), DomainError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn temp_dir(prefix: &str) -> PathBuf {
-        let d = std::env::temp_dir().join("bms_test_rename").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_append_name_by_bms_numbers_only() {
-        let root = temp_dir("append_num");
-        let work = root.join("123");
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("123");
         std::fs::create_dir_all(&work).unwrap();
         std::fs::write(
             work.join("test.bms"),
@@ -354,77 +344,73 @@ mod tests {
         )
         .unwrap();
 
-        append_name_by_bms(&root).await.unwrap();
+        append_name_by_bms(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(&root)
+        let entries: Vec<_> = std::fs::read_dir(root.path())
             .unwrap()
             .filter_map(Result::ok)
             .collect();
         assert_eq!(entries.len(), 1);
         let name = entries[0].file_name().to_string_lossy().to_string();
         assert!(name.contains("123. TestSong [TestArtist]"), "got: {name}");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_append_name_by_bms_skips_named() {
-        let root = temp_dir("append_skip");
-        let work = root.join("MySong");
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("MySong");
         std::fs::create_dir_all(&work).unwrap();
         std::fs::write(work.join("test.bms"), "#TITLE TestSong\n").unwrap();
 
-        append_name_by_bms(&root).await.unwrap();
+        append_name_by_bms(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(&root)
+        let entries: Vec<_> = std::fs::read_dir(root.path())
             .unwrap()
             .filter_map(Result::ok)
             .collect();
         assert_eq!(entries.len(), 1);
         let name = entries[0].file_name().to_string_lossy().to_string();
         assert_eq!(name, "MySong", "should skip non-numeric dir: {name}");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_append_artist_name() {
-        let root = temp_dir("app_artist");
-        let work = root.join("MySong");
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("MySong");
         std::fs::create_dir_all(&work).unwrap();
         std::fs::write(work.join("test.bms"), "#TITLE Song\n#ARTIST ArtistName\n").unwrap();
 
-        append_artist_name_by_bms(&root).await.unwrap();
+        append_artist_name_by_bms(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(&root)
+        let entries: Vec<_> = std::fs::read_dir(root.path())
             .unwrap()
             .filter_map(Result::ok)
             .collect();
         assert_eq!(entries.len(), 1);
         let name = entries[0].file_name().to_string_lossy().to_string();
         assert!(name.contains("[ArtistName]"), "missing artist in: {name}");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_append_artist_name_skips_already_set() {
-        let root = temp_dir("app_artist_skip");
-        let work = root.join("MySong [Artist]");
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("MySong [Artist]");
         std::fs::create_dir_all(&work).unwrap();
 
-        append_artist_name_by_bms(&root).await.unwrap();
+        append_artist_name_by_bms(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(&root)
+        let entries: Vec<_> = std::fs::read_dir(root.path())
             .unwrap()
             .filter_map(Result::ok)
             .collect();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].file_name().to_string_lossy(), "MySong [Artist]");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_set_name_by_bms_basic() {
-        let root = temp_dir("setname_basic");
-        let work = root.join("123");
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("123");
         std::fs::create_dir_all(&work).unwrap();
         std::fs::write(
             work.join("test.bms"),
@@ -432,86 +418,81 @@ mod tests {
         )
         .unwrap();
 
-        set_name_by_bms(&root).await.unwrap();
+        set_name_by_bms(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(&root)
+        let entries: Vec<_> = std::fs::read_dir(root.path())
             .unwrap()
             .filter_map(Result::ok)
             .collect();
         assert_eq!(entries.len(), 1);
         let name = entries[0].file_name().to_string_lossy().to_string();
         assert_eq!(name, "NiceSong [NiceArtist]");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_set_name_by_bms_merge() {
-        let root = temp_dir("setname_merge");
-        let src = root.join("src");
+        let root = TempDir::new().unwrap();
+        let src = root.path().join("src");
         std::fs::create_dir_all(&src).unwrap();
         std::fs::write(src.join("test.bms"), "#TITLE Song\n#ARTIST Artist\n").unwrap();
         std::fs::write(src.join("a.ogg"), "audio").unwrap();
         std::fs::write(src.join("readme.txt"), "info").unwrap();
-        let dst = root.join("Song [Artist]");
+        let dst = root.path().join("Song [Artist]");
         std::fs::create_dir_all(&dst).unwrap();
         std::fs::write(dst.join("a.ogg"), "audio").unwrap();
         std::fs::write(dst.join("readme.txt"), "info").unwrap();
         std::fs::write(dst.join("b.ogg"), "audio2").unwrap();
 
-        set_name_by_bms(&root).await.unwrap();
+        set_name_by_bms(root.path()).await.unwrap();
 
         assert!(!src.exists(), "src should be removed after merge");
         assert!(dst.join("b.ogg").is_file(), "dst extra file should survive");
         assert!(dst.join("a.ogg").is_file(), "shared file should remain");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_set_name_by_bms_empty_info() {
-        let root = temp_dir("setname_empty");
-        let work = root.join("99");
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("99");
         std::fs::create_dir_all(&work).unwrap();
         std::fs::write(work.join("test.bms"), "#TITLE \n#ARTIST \n").unwrap();
 
-        set_name_by_bms(&root).await.unwrap();
-        let entries: Vec<_> = std::fs::read_dir(&root)
+        set_name_by_bms(root.path()).await.unwrap();
+        let entries: Vec<_> = std::fs::read_dir(root.path())
             .unwrap()
             .filter_map(Result::ok)
             .collect();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].file_name().to_string_lossy(), "99");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_undo_set_name() {
-        let root = temp_dir("undo");
-        let work = root.join("NiceSong [NiceArtist]");
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("NiceSong [NiceArtist]");
         std::fs::create_dir_all(&work).unwrap();
 
-        undo_set_name(&root).await.unwrap();
+        undo_set_name(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(&root)
+        let entries: Vec<_> = std::fs::read_dir(root.path())
             .unwrap()
             .filter_map(Result::ok)
             .collect();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].file_name().to_string_lossy(), "NiceSong");
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
     async fn test_undo_set_name_skip_conflict() {
-        let root = temp_dir("undo_conflict");
-        let work = root.join("NiceSong [Artist]");
-        let conflict = root.join("NiceSong");
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("NiceSong [Artist]");
+        let conflict = root.path().join("NiceSong");
         std::fs::create_dir_all(&work).unwrap();
         std::fs::create_dir_all(&conflict).unwrap();
 
-        undo_set_name(&root).await.unwrap();
+        undo_set_name(root.path()).await.unwrap();
 
         assert!(work.is_dir(), "original should survive");
         assert!(conflict.is_dir(), "conflict should survive");
-        let _ = std::fs::remove_dir_all(&root);
     }
 }

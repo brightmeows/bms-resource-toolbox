@@ -102,49 +102,38 @@ pub async fn get_dir_bms_info(bms_dir_path: &Path) -> Option<BMSInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn temp_dir(prefix: &str) -> PathBuf {
-        let d = std::env::temp_dir().join("bms_test_dir").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_get_dir_bms_info_basic() {
-        let dir = temp_dir("info_basic");
+        let dir = TempDir::new().unwrap();
         std::fs::write(
-            dir.join("test.bms"),
+            dir.path().join("test.bms"),
             "#TITLE MySong\n#ARTIST MyArtist\n#GENRE MyGenre\n",
         )
         .unwrap();
-        let info = get_dir_bms_info(&dir).await;
+        let info = get_dir_bms_info(dir.path()).await;
         assert!(info.is_some(), "should find bms info");
         let info = info.unwrap();
         assert_eq!(info.title, "MySong");
         assert_eq!(info.artist, "MyArtist");
         assert_eq!(info.genre, "MyGenre");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]
     async fn test_get_dir_bms_info_multiple_files() {
-        let dir = temp_dir("info_multi");
+        let dir = TempDir::new().unwrap();
         std::fs::write(
-            dir.join("test.bms"),
+            dir.path().join("test.bms"),
             "#TITLE CommonTitle - Another\n#ARTIST ArtistA\n",
         )
         .unwrap();
         std::fs::write(
-            dir.join("test2.bms"),
+            dir.path().join("test2.bms"),
             "#TITLE CommonTitle - Hyper\n#ARTIST ArtistB\n",
         )
         .unwrap();
-        let info = get_dir_bms_info(&dir).await;
+        let info = get_dir_bms_info(dir.path()).await;
         assert!(info.is_some(), "should find bms info");
         let info = info.unwrap();
         assert!(
@@ -152,28 +141,25 @@ mod tests {
             "common prefix should be extracted: {}",
             info.title
         );
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]
     async fn test_get_dir_bms_info_no_bms_files() {
-        let dir = temp_dir("info_none");
-        std::fs::write(dir.join("readme.txt"), "no bms here").unwrap();
-        let info = get_dir_bms_info(&dir).await;
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("readme.txt"), "no bms here").unwrap();
+        let info = get_dir_bms_info(dir.path()).await;
         assert!(info.is_none(), "no bms files -> None");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]
     async fn test_get_dir_bms_info_bmson() {
-        let dir = temp_dir("info_bmson");
+        let dir = TempDir::new().unwrap();
         let bmson =
             r#"{"info":{"title":"BMSON Song","artist":"BMSON Artist","genre":"BMSON Genre"}}"#;
-        std::fs::write(dir.join("test.bmson"), bmson).unwrap();
-        let info = get_dir_bms_info(&dir).await;
+        std::fs::write(dir.path().join("test.bmson"), bmson).unwrap();
+        let info = get_dir_bms_info(dir.path()).await;
         assert!(info.is_some(), "should find bmson info");
         let info = info.unwrap();
         assert_eq!(info.title, "BMSON Song");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

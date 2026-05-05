@@ -336,23 +336,13 @@ pub async fn transfer_audio_by_format_in_dir(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn temp_dir(prefix: &str) -> PathBuf {
-        let d = std::env::temp_dir().join("bms_test_convert").join(format!(
-            "{}_{}",
-            prefix,
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_transfer_audio_empty_dir() {
-        let dir = temp_dir("audio_empty");
+        let dir = TempDir::new().unwrap();
         let result = transfer_audio_by_format_in_dir(
-            &dir,
+            dir.path(),
             &["wav"],
             std::slice::from_ref(&super::super::audio::AUDIO_PRESET_FLAC),
             &TransferOptions {
@@ -364,15 +354,14 @@ mod tests {
         )
         .await;
         assert!(result.is_ok(), "empty dir should succeed");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]
     async fn test_transfer_audio_skips_wrong_ext() {
-        let dir = temp_dir("audio_wrong_ext");
-        std::fs::write(dir.join("test.txt"), "not audio").unwrap();
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("test.txt"), "not audio").unwrap();
         let result = transfer_audio_by_format_in_dir(
-            &dir,
+            dir.path(),
             &["wav"],
             std::slice::from_ref(&super::super::audio::AUDIO_PRESET_FLAC),
             &TransferOptions {
@@ -384,6 +373,5 @@ mod tests {
         )
         .await;
         assert!(result.is_ok(), "wrong ext files should be skipped");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
