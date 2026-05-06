@@ -3,8 +3,8 @@
 //! This module handles BMS (Beatmania) chart file parsing,
 //! encoding detection, and metadata extraction.
 
+pub mod dir;
 pub mod encoding;
-pub mod info;
 pub mod parse;
 pub mod types;
 pub mod work;
