@@ -4,12 +4,12 @@
 //! and extracting aggregated BMS information.
 
 use std::path::Path;
+use tokio::fs;
 
 use crate::domain::bms::encoding::{get_bms_file_str, get_boftt_encoding};
 use crate::domain::bms::parse::{parse_bms_content, parse_bmson_file};
 use crate::domain::bms::types::{BMS_FILE_EXTS, BMSInfo, BMSON_FILE_EXTS};
 use crate::domain::bms::work::{extract_work_name, extract_work_name_for_artist};
-use tokio::fs;
 
 async fn get_dir_bms_list(dir_path: &Path) -> Vec<BMSInfo> {
     let mut info_list: Vec<BMSInfo> = Vec::new();
@@ -107,10 +107,11 @@ mod tests {
     #[tokio::test]
     async fn test_get_dir_bms_info_basic() {
         let dir = TempDir::new().unwrap();
-        std::fs::write(
+        fs::write(
             dir.path().join("test.bms"),
             "#TITLE MySong\n#ARTIST MyArtist\n#GENRE MyGenre\n",
         )
+        .await
         .unwrap();
         let info = get_dir_bms_info(dir.path()).await;
         assert!(info.is_some(), "should find bms info");
@@ -123,15 +124,17 @@ mod tests {
     #[tokio::test]
     async fn test_get_dir_bms_info_multiple_files() {
         let dir = TempDir::new().unwrap();
-        std::fs::write(
+        fs::write(
             dir.path().join("test.bms"),
             "#TITLE CommonTitle - Another\n#ARTIST ArtistA\n",
         )
+        .await
         .unwrap();
-        std::fs::write(
+        fs::write(
             dir.path().join("test2.bms"),
             "#TITLE CommonTitle - Hyper\n#ARTIST ArtistB\n",
         )
+        .await
         .unwrap();
         let info = get_dir_bms_info(dir.path()).await;
         assert!(info.is_some(), "should find bms info");
@@ -146,7 +149,9 @@ mod tests {
     #[tokio::test]
     async fn test_get_dir_bms_info_no_bms_files() {
         let dir = TempDir::new().unwrap();
-        std::fs::write(dir.path().join("readme.txt"), "no bms here").unwrap();
+        fs::write(dir.path().join("readme.txt"), "no bms here")
+            .await
+            .unwrap();
         let info = get_dir_bms_info(dir.path()).await;
         assert!(info.is_none(), "no bms files -> None");
     }
@@ -156,7 +161,9 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let bmson =
             r#"{"info":{"title":"BMSON Song","artist":"BMSON Artist","genre":"BMSON Genre"}}"#;
-        std::fs::write(dir.path().join("test.bmson"), bmson).unwrap();
+        fs::write(dir.path().join("test.bmson"), bmson)
+            .await
+            .unwrap();
         let info = get_dir_bms_info(dir.path()).await;
         assert!(info.is_some(), "should find bmson info");
         let info = info.unwrap();

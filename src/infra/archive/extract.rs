@@ -2,6 +2,7 @@ use chrono::TimeZone;
 use std::path::{Path, PathBuf};
 
 use super::encode::encode_cp437;
+use tokio::fs;
 
 /// Extract an archive (zip, 7z, rar) into the output directory.
 ///
@@ -18,14 +19,15 @@ pub async fn extract_archive(archive_path: &Path, output_dir: &Path) -> anyhow::
         .map(str::to_lowercase)
         .unwrap_or_default();
 
-    tokio::fs::create_dir_all(output_dir).await?;
+    fs::create_dir_all(output_dir).await?;
 
     match ext.as_str() {
         "zip" => {
             let archive_path = archive_path.to_path_buf();
             let output_dir = output_dir.to_path_buf();
-            match tokio::task::spawn_blocking(move || extract_zip(&archive_path, &output_dir)).await
-            {
+            let file = fs::File::open(&archive_path).await?;
+            let file = file.into_std().await;
+            match tokio::task::spawn_blocking(move || extract_zip(file, &output_dir)).await {
                 Ok(result) => result?,
                 Err(e) => return Err(anyhow::anyhow!("Join error: {e}")),
             }
@@ -34,17 +36,16 @@ pub async fn extract_archive(archive_path: &Path, output_dir: &Path) -> anyhow::
         "rar" => extract_rar(archive_path, output_dir).await?,
         _ => {
             let target_path = output_dir.join(archive_path.file_name().unwrap_or_default());
-            tokio::fs::copy(archive_path, &target_path).await?;
+            fs::copy(archive_path, &target_path).await?;
         }
     }
 
     Ok(())
 }
 
-fn extract_zip(archive_path: &Path, output_dir: &Path) -> Result<(), std::io::Error> {
+fn extract_zip(file: std::fs::File, output_dir: &Path) -> Result<(), std::io::Error> {
     use zip::ZipArchive;
 
-    let file = std::fs::File::open(archive_path)?;
     let mut archive = ZipArchive::new(file)?;
 
     let use_cp932 = detect_cp932_encoding(&mut archive);
@@ -82,7 +83,9 @@ fn extract_zip(archive_path: &Path, output_dir: &Path) -> Result<(), std::io::Er
     Ok(())
 }
 
-fn detect_cp932_encoding(archive: &mut zip::ZipArchive<std::fs::File>) -> bool {
+fn detect_cp932_encoding<R: std::io::Read + std::io::Seek>(
+    archive: &mut zip::ZipArchive<R>,
+) -> bool {
     for i in 0..archive.len() {
         let Ok(file) = archive.by_index(i) else {
             continue;

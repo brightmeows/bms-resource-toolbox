@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
+use tokio::fs;
 
 /// Check whether two files have identical content by reading both into memory.
 pub async fn is_same_content(file_a: &Path, file_b: &Path) -> bool {
     if !file_a.is_file() || !file_b.is_file() {
         return false;
     }
-    match (tokio::fs::read(file_a).await, tokio::fs::read(file_b).await) {
+    match (fs::read(file_a).await, fs::read(file_b).await) {
         (Ok(a), Ok(b)) => a == b,
         _ => false,
     }
@@ -81,14 +82,14 @@ pub static DEFAULT_REPLACE_OPTIONS: LazyLock<ReplaceOptions> = LazyLock::new(|| 
 #[must_use]
 pub async fn is_dir_having_file(dir: &Path) -> bool {
     async fn check_recursive(dir: &Path) -> bool {
-        let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+        let Ok(mut entries) = fs::read_dir(dir).await else {
             return false;
         };
 
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
             if path.is_file()
-                && let Ok(metadata) = tokio::fs::metadata(&path).await
+                && let Ok(metadata) = fs::metadata(&path).await
                 && metadata.len() > 0
             {
                 return true;
@@ -122,10 +123,9 @@ pub async fn move_elements_across_dir(
     options: MoveOptions,
     replace_options: &ReplaceOptions,
 ) -> Result<(), std::io::Error> {
-    if let (Ok(src_canon), Ok(dst_canon)) = (
-        tokio::fs::canonicalize(src).await,
-        tokio::fs::canonicalize(dst).await,
-    ) && src_canon == dst_canon
+    if let (Ok(src_canon), Ok(dst_canon)) =
+        (fs::canonicalize(src).await, fs::canonicalize(dst).await)
+        && src_canon == dst_canon
     {
         return Ok(());
     }
@@ -141,7 +141,7 @@ pub async fn move_elements_across_dir(
     let mut next_folder_paths: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut write_ops: Vec<(PathBuf, PathBuf)> = Vec::new();
 
-    let mut entries = tokio::fs::read_dir(src).await?;
+    let mut entries = fs::read_dir(src).await?;
     while let Some(entry) = entries.next_entry().await? {
         let src_path = entry.path();
         let filename = entry.file_name();
@@ -177,7 +177,7 @@ pub async fn move_elements_across_dir(
 
     let should_clean =
         replace_options.default != ReplaceAction::Skip || !is_dir_having_file(src).await;
-    if should_clean && let Err(e) = tokio::fs::remove_dir_all(src).await {
+    if should_clean && let Err(e) = fs::remove_dir_all(src).await {
         println!("Failed to remove source directory {src:?}: {e}");
     }
 
@@ -261,37 +261,37 @@ async fn plan_move_file(
 use super::utils::copy_dir_recursive;
 
 async fn move_file(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
-    match tokio::fs::rename(src, dst).await {
+    match fs::rename(src, dst).await {
         Ok(()) => Ok(()),
         Err(_) => {
             if src.is_dir() {
                 copy_dir_recursive(src, dst).await?;
-                tokio::fs::remove_dir_all(src).await
+                fs::remove_dir_all(src).await
             } else {
-                tokio::fs::copy(src, dst).await?;
-                tokio::fs::remove_file(src).await
+                fs::copy(src, dst).await?;
+                fs::remove_file(src).await
             }
         }
     }
 }
 
 async fn move_dir_as_whole(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
-    if tokio::fs::rename(src, dst).await.is_err() {
+    if fs::rename(src, dst).await.is_err() {
         copy_dir_recursive(src, dst).await?;
         set_mtime_recursive(src, dst).await?;
-        tokio::fs::remove_dir_all(src).await
+        fs::remove_dir_all(src).await
     } else {
         Ok(())
     }
 }
 
 async fn set_mtime_recursive(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
-    let src_meta = tokio::fs::metadata(src).await?;
+    let src_meta = fs::metadata(src).await?;
     let mtime = filetime::FileTime::from_last_modification_time(&src_meta);
     filetime::set_file_mtime(dst, mtime).map_err(std::io::Error::other)?;
 
     if src_meta.is_dir() {
-        let mut entries = tokio::fs::read_dir(src).await?;
+        let mut entries = fs::read_dir(src).await?;
         while let Some(entry) = entries.next_entry().await? {
             let src_child = entry.path();
             let dst_child = dst.join(entry.file_name());
@@ -304,8 +304,6 @@ async fn set_mtime_recursive(src: &Path, dst: &Path) -> Result<(), std::io::Erro
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::File;
-    use std::io::Write;
     use tempfile::TempDir;
 
     #[tokio::test]
@@ -314,7 +312,7 @@ mod tests {
         let src_file = dir.path().join("test.txt");
         let dst_dir = TempDir::new().unwrap();
         let dst_file = dst_dir.path().join("test.txt");
-        std::fs::write(&src_file, "content").unwrap();
+        fs::write(&src_file, "content").await.unwrap();
 
         let opts = ReplaceOptions {
             ext: HashMap::new(),
@@ -332,8 +330,8 @@ mod tests {
         let src_file = dir.path().join("test.txt");
         let dst_dir = TempDir::new().unwrap();
         let dst_file = dst_dir.path().join("test.txt");
-        std::fs::write(&src_file, "content2").unwrap();
-        std::fs::write(&dst_file, "content1").unwrap();
+        fs::write(&src_file, "content2").await.unwrap();
+        fs::write(&dst_file, "content1").await.unwrap();
 
         let opts = ReplaceOptions {
             ext: HashMap::new(),
@@ -352,8 +350,8 @@ mod tests {
         let src_file = dir.path().join("test.txt");
         let dst_dir = TempDir::new().unwrap();
         let dst_file = dst_dir.path().join("test.txt");
-        std::fs::write(&src_file, "same").unwrap();
-        std::fs::write(&dst_file, "same").unwrap();
+        fs::write(&src_file, "same").await.unwrap();
+        fs::write(&dst_file, "same").await.unwrap();
 
         let opts = ReplaceOptions {
             ext: HashMap::new(),
@@ -369,13 +367,14 @@ mod tests {
         let src_file = dir.path().join("test.txt");
         let dst_dir = TempDir::new().unwrap();
         let dst_file = dst_dir.path().join("test.txt");
-        std::fs::write(&src_file, "unique").unwrap();
-        std::fs::write(&dst_file, "content1").unwrap();
+        fs::write(&src_file, "unique").await.unwrap();
+        fs::write(&dst_file, "content1").await.unwrap();
         for i in 0..100 {
-            std::fs::write(
+            fs::write(
                 dst_dir.path().join(format!("test.{i}.txt")),
                 format!("other{i}"),
             )
+            .await
             .unwrap();
         }
 
@@ -392,9 +391,9 @@ mod tests {
         let src = TempDir::new().unwrap();
         let non_exist = TempDir::new().unwrap();
         let dst = non_exist.path().join("moved_whole");
-        let _ = std::fs::remove_dir_all(&dst);
-        std::fs::write(src.path().join("a.txt"), "data").unwrap();
-        std::fs::write(src.path().join("b.txt"), "data").unwrap();
+        let _ = fs::remove_dir_all(&dst).await;
+        fs::write(src.path().join("a.txt"), "data").await.unwrap();
+        fs::write(src.path().join("b.txt"), "data").await.unwrap();
 
         let opts = MoveOptions::default();
         let rep = ReplaceOptions::default();
@@ -412,9 +411,7 @@ mod tests {
     async fn test_is_dir_having_file() {
         let dir = TempDir::new().unwrap();
         let file_path = dir.path().join("test.txt");
-        let mut file = File::create(&file_path).unwrap();
-        file.write_all(b"test content").unwrap();
-        drop(file);
+        fs::write(&file_path, b"test content").await.unwrap();
 
         assert!(is_dir_having_file(dir.path()).await);
 

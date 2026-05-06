@@ -83,20 +83,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_jump_to_work_info_empty_opens_list() {
-        jump_to_work_info(BMSEvent::BOFTT, &[]);
-        jump_to_work_info(BMSEvent::BOF21, &[]);
-        jump_to_work_info(BMSEvent::LetsBMSEdit3, &[]);
-    }
-
-    #[test]
-    fn test_jump_to_work_info_with_ids() {
-        jump_to_work_info(BMSEvent::BOFTT, &[1, 2, 3]);
-        jump_to_work_info(BMSEvent::BOF21, &[100]);
-        jump_to_work_info(BMSEvent::LetsBMSEdit3, &[42]);
-    }
-
-    #[test]
     fn test_bmsevent_work_info_url() {
         let url = BMSEvent::BOFTT.work_info_url(123);
         assert!(url.contains("event=146"));

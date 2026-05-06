@@ -4,6 +4,7 @@
 //! audio and video files in BMS directories.
 
 use std::path::Path;
+use tokio::fs;
 
 use crate::domain::error::DomainError;
 use crate::infra::media::audio::{
@@ -81,7 +82,7 @@ pub async fn transfer_audio(root_dir: &Path, mode: AudioMode) -> Result<(), Doma
     let combined_exts: Vec<&str> = exts.clone();
     let combined_presets: Vec<AudioPreset> = presets.clone();
 
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let bms_dir = entry.path();
         if !bms_dir.is_dir() {
@@ -149,7 +150,7 @@ pub async fn transfer_video(root_dir: &Path, format: VideoFormat) -> Result<(), 
     let preset = presets[idx].1.clone();
 
     // Process each work directory
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let bms_dir = entry.path();
         if !bms_dir.is_dir() {
@@ -198,8 +199,8 @@ mod tests {
         for mode in AudioMode::all() {
             let root = TempDir::new().unwrap();
             let work = root.path().join("Song");
-            std::fs::create_dir_all(&work).unwrap();
-            std::fs::write(work.join("test.wav"), "data").unwrap();
+            fs::create_dir_all(&work).await.unwrap();
+            fs::write(work.join("test.wav"), "data").await.unwrap();
             let _result = transfer_audio(root.path(), *mode).await;
         }
     }

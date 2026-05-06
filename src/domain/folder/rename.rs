@@ -1,6 +1,7 @@
 //! BMS folder rename operations.
 
 use std::path::{Path, PathBuf};
+use tokio::fs;
 
 use crate::domain::bms::dir::get_dir_bms_info;
 use crate::domain::error::DomainError;
@@ -24,7 +25,7 @@ pub async fn append_name_by_bms(root_dir: &Path) -> Result<(), DomainError> {
 
     let mut to_rename: Vec<(PathBuf, PathBuf)> = Vec::new();
 
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let dir_path = entry.path();
         if !dir_path.is_dir() {
@@ -46,7 +47,7 @@ pub async fn append_name_by_bms(root_dir: &Path) -> Result<(), DomainError> {
 
     for (from, to) in to_rename {
         println!("Renaming {:?} -> {:?}", from.file_name(), to.file_name());
-        tokio::fs::rename(&from, &to).await?;
+        fs::rename(&from, &to).await?;
     }
 
     Ok(())
@@ -96,7 +97,7 @@ pub async fn append_artist_name_by_bms(root_dir: &Path) -> Result<(), DomainErro
     }
 
     let mut pairs: Vec<(PathBuf, PathBuf)> = Vec::new();
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let dir_path = entry.path();
         if !dir_path.is_dir() {
@@ -126,7 +127,7 @@ pub async fn append_artist_name_by_bms(root_dir: &Path) -> Result<(), DomainErro
     }
 
     for (from, to) in pairs {
-        tokio::fs::rename(&from, &to).await?;
+        fs::rename(&from, &to).await?;
     }
 
     Ok(())
@@ -147,7 +148,7 @@ pub async fn set_name_by_bms(root_dir: &Path) -> Result<(), DomainError> {
 
     let mut fail_list: Vec<String> = Vec::new();
 
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let dir_path = entry.path();
         if !dir_path.is_dir() {
@@ -187,14 +188,14 @@ async fn set_single_folder_name_by_bms(work_dir: &Path) -> Result<bool, DomainEr
         );
 
         let mut elements: Vec<_> = Vec::new();
-        let mut read_dir = tokio::fs::read_dir(work_dir).await?;
+        let mut read_dir = fs::read_dir(work_dir).await?;
         while let Some(entry) = read_dir.next_entry().await? {
             elements.push(entry);
         }
 
         if elements.is_empty() {
             println!(" - Empty dir! Deleting...");
-            match tokio::fs::remove_dir(work_dir).await {
+            match fs::remove_dir(work_dir).await {
                 Ok(()) => {}
                 Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
                     println!(" x PermissionError: {e}");
@@ -252,7 +253,7 @@ async fn set_single_folder_name_by_bms(work_dir: &Path) -> Result<bool, DomainEr
     );
 
     if !new_dir_path.is_dir() {
-        tokio::fs::rename(work_dir, &new_dir_path).await?;
+        fs::rename(work_dir, &new_dir_path).await?;
         return Ok(true);
     }
 
@@ -290,8 +291,8 @@ pub async fn undo_set_name(root_dir: &Path) -> Result<(), DomainError> {
         return Ok(());
     }
 
-    let mut dir_entries: Vec<tokio::fs::DirEntry> = Vec::new();
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut dir_entries: Vec<fs::DirEntry> = Vec::new();
+    let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         dir_entries.push(entry);
     }
@@ -322,7 +323,7 @@ pub async fn undo_set_name(root_dir: &Path) -> Result<(), DomainError> {
         }
 
         println!("Rename {dir_name} to {new_dir_name}");
-        tokio::fs::rename(&dir_path, &new_dir_path).await?;
+        fs::rename(&dir_path, &new_dir_path).await?;
     }
 
     Ok(())
@@ -337,19 +338,21 @@ mod tests {
     async fn test_append_name_by_bms_numbers_only() {
         let root = TempDir::new().unwrap();
         let work = root.path().join("123");
-        std::fs::create_dir_all(&work).unwrap();
-        std::fs::write(
+        fs::create_dir_all(&work).await.unwrap();
+        fs::write(
             work.join("test.bms"),
             "#TITLE TestSong\n#ARTIST TestArtist\n",
         )
+        .await
         .unwrap();
 
         append_name_by_bms(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(root.path())
-            .unwrap()
-            .filter_map(Result::ok)
-            .collect();
+        let mut read_dir = fs::read_dir(root.path()).await.unwrap();
+        let mut entries = Vec::new();
+        while let Some(entry) = read_dir.next_entry().await.unwrap() {
+            entries.push(entry);
+        }
         assert_eq!(entries.len(), 1);
         let name = entries[0].file_name().to_string_lossy().to_string();
         assert!(name.contains("123. TestSong [TestArtist]"), "got: {name}");
@@ -359,15 +362,18 @@ mod tests {
     async fn test_append_name_by_bms_skips_named() {
         let root = TempDir::new().unwrap();
         let work = root.path().join("MySong");
-        std::fs::create_dir_all(&work).unwrap();
-        std::fs::write(work.join("test.bms"), "#TITLE TestSong\n").unwrap();
+        fs::create_dir_all(&work).await.unwrap();
+        fs::write(work.join("test.bms"), "#TITLE TestSong\n")
+            .await
+            .unwrap();
 
         append_name_by_bms(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(root.path())
-            .unwrap()
-            .filter_map(Result::ok)
-            .collect();
+        let mut read_dir = fs::read_dir(root.path()).await.unwrap();
+        let mut entries = Vec::new();
+        while let Some(entry) = read_dir.next_entry().await.unwrap() {
+            entries.push(entry);
+        }
         assert_eq!(entries.len(), 1);
         let name = entries[0].file_name().to_string_lossy().to_string();
         assert_eq!(name, "MySong", "should skip non-numeric dir: {name}");
@@ -377,15 +383,18 @@ mod tests {
     async fn test_append_artist_name() {
         let root = TempDir::new().unwrap();
         let work = root.path().join("MySong");
-        std::fs::create_dir_all(&work).unwrap();
-        std::fs::write(work.join("test.bms"), "#TITLE Song\n#ARTIST ArtistName\n").unwrap();
+        fs::create_dir_all(&work).await.unwrap();
+        fs::write(work.join("test.bms"), "#TITLE Song\n#ARTIST ArtistName\n")
+            .await
+            .unwrap();
 
         append_artist_name_by_bms(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(root.path())
-            .unwrap()
-            .filter_map(Result::ok)
-            .collect();
+        let mut read_dir = fs::read_dir(root.path()).await.unwrap();
+        let mut entries = Vec::new();
+        while let Some(entry) = read_dir.next_entry().await.unwrap() {
+            entries.push(entry);
+        }
         assert_eq!(entries.len(), 1);
         let name = entries[0].file_name().to_string_lossy().to_string();
         assert!(name.contains("[ArtistName]"), "missing artist in: {name}");
@@ -395,14 +404,15 @@ mod tests {
     async fn test_append_artist_name_skips_already_set() {
         let root = TempDir::new().unwrap();
         let work = root.path().join("MySong [Artist]");
-        std::fs::create_dir_all(&work).unwrap();
+        fs::create_dir_all(&work).await.unwrap();
 
         append_artist_name_by_bms(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(root.path())
-            .unwrap()
-            .filter_map(Result::ok)
-            .collect();
+        let mut read_dir = fs::read_dir(root.path()).await.unwrap();
+        let mut entries = Vec::new();
+        while let Some(entry) = read_dir.next_entry().await.unwrap() {
+            entries.push(entry);
+        }
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].file_name().to_string_lossy(), "MySong [Artist]");
     }
@@ -411,19 +421,21 @@ mod tests {
     async fn test_set_name_by_bms_basic() {
         let root = TempDir::new().unwrap();
         let work = root.path().join("123");
-        std::fs::create_dir_all(&work).unwrap();
-        std::fs::write(
+        fs::create_dir_all(&work).await.unwrap();
+        fs::write(
             work.join("test.bms"),
             "#TITLE NiceSong\n#ARTIST NiceArtist\n#GENRE NiceGenre\n",
         )
+        .await
         .unwrap();
 
         set_name_by_bms(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(root.path())
-            .unwrap()
-            .filter_map(Result::ok)
-            .collect();
+        let mut read_dir = fs::read_dir(root.path()).await.unwrap();
+        let mut entries = Vec::new();
+        while let Some(entry) = read_dir.next_entry().await.unwrap() {
+            entries.push(entry);
+        }
         assert_eq!(entries.len(), 1);
         let name = entries[0].file_name().to_string_lossy().to_string();
         assert_eq!(name, "NiceSong [NiceArtist]");
@@ -433,15 +445,17 @@ mod tests {
     async fn test_set_name_by_bms_merge() {
         let root = TempDir::new().unwrap();
         let src = root.path().join("src");
-        std::fs::create_dir_all(&src).unwrap();
-        std::fs::write(src.join("test.bms"), "#TITLE Song\n#ARTIST Artist\n").unwrap();
-        std::fs::write(src.join("a.ogg"), "audio").unwrap();
-        std::fs::write(src.join("readme.txt"), "info").unwrap();
+        fs::create_dir_all(&src).await.unwrap();
+        fs::write(src.join("test.bms"), "#TITLE Song\n#ARTIST Artist\n")
+            .await
+            .unwrap();
+        fs::write(src.join("a.ogg"), "audio").await.unwrap();
+        fs::write(src.join("readme.txt"), "info").await.unwrap();
         let dst = root.path().join("Song [Artist]");
-        std::fs::create_dir_all(&dst).unwrap();
-        std::fs::write(dst.join("a.ogg"), "audio").unwrap();
-        std::fs::write(dst.join("readme.txt"), "info").unwrap();
-        std::fs::write(dst.join("b.ogg"), "audio2").unwrap();
+        fs::create_dir_all(&dst).await.unwrap();
+        fs::write(dst.join("a.ogg"), "audio").await.unwrap();
+        fs::write(dst.join("readme.txt"), "info").await.unwrap();
+        fs::write(dst.join("b.ogg"), "audio2").await.unwrap();
 
         set_name_by_bms(root.path()).await.unwrap();
 
@@ -454,14 +468,17 @@ mod tests {
     async fn test_set_name_by_bms_empty_info() {
         let root = TempDir::new().unwrap();
         let work = root.path().join("99");
-        std::fs::create_dir_all(&work).unwrap();
-        std::fs::write(work.join("test.bms"), "#TITLE \n#ARTIST \n").unwrap();
+        fs::create_dir_all(&work).await.unwrap();
+        fs::write(work.join("test.bms"), "#TITLE \n#ARTIST \n")
+            .await
+            .unwrap();
 
         set_name_by_bms(root.path()).await.unwrap();
-        let entries: Vec<_> = std::fs::read_dir(root.path())
-            .unwrap()
-            .filter_map(Result::ok)
-            .collect();
+        let mut read_dir = fs::read_dir(root.path()).await.unwrap();
+        let mut entries = Vec::new();
+        while let Some(entry) = read_dir.next_entry().await.unwrap() {
+            entries.push(entry);
+        }
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].file_name().to_string_lossy(), "99");
     }
@@ -470,14 +487,15 @@ mod tests {
     async fn test_undo_set_name() {
         let root = TempDir::new().unwrap();
         let work = root.path().join("NiceSong [NiceArtist]");
-        std::fs::create_dir_all(&work).unwrap();
+        fs::create_dir_all(&work).await.unwrap();
 
         undo_set_name(root.path()).await.unwrap();
 
-        let entries: Vec<_> = std::fs::read_dir(root.path())
-            .unwrap()
-            .filter_map(Result::ok)
-            .collect();
+        let mut read_dir = fs::read_dir(root.path()).await.unwrap();
+        let mut entries = Vec::new();
+        while let Some(entry) = read_dir.next_entry().await.unwrap() {
+            entries.push(entry);
+        }
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].file_name().to_string_lossy(), "NiceSong");
     }
@@ -487,8 +505,8 @@ mod tests {
         let root = TempDir::new().unwrap();
         let work = root.path().join("NiceSong [Artist]");
         let conflict = root.path().join("NiceSong");
-        std::fs::create_dir_all(&work).unwrap();
-        std::fs::create_dir_all(&conflict).unwrap();
+        fs::create_dir_all(&work).await.unwrap();
+        fs::create_dir_all(&conflict).await.unwrap();
 
         undo_set_name(root.path()).await.unwrap();
 

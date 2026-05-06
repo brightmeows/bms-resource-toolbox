@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::LazyLock;
+use tokio::fs;
 use tokio::process::Command;
 
 /// Video conversion preset.
@@ -271,7 +272,7 @@ pub async fn transfer_video_by_format_in_dir(
     let cpu_count = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
 
     let mut files: Vec<PathBuf> = Vec::new();
-    if let Ok(mut entries) = tokio::fs::read_dir(dir).await {
+    if let Ok(mut entries) = fs::read_dir(dir).await {
         while let Some(entry) = entries.next_entry().await.unwrap_or(None) {
             let path = entry.path();
             if path.is_file()
@@ -328,7 +329,7 @@ pub async fn transfer_video_by_format_in_dir(
 
                 if output.is_file() {
                     if remove_existing_target_file {
-                        let _ = tokio::fs::remove_file(&output).await;
+                        let _ = fs::remove_file(&output).await;
                     } else {
                         println!("File exists: {output:?}");
                         continue;
@@ -354,7 +355,7 @@ pub async fn transfer_video_by_format_in_dir(
                 match result {
                     Ok(output_result) if output_result.status.success() => {
                         if remove_origin_file && file_path.is_file() {
-                            let _ = tokio::fs::remove_file(&file_path).await;
+                            let _ = fs::remove_file(&file_path).await;
                         }
                         break;
                     }
@@ -362,7 +363,7 @@ pub async fn transfer_video_by_format_in_dir(
                         let stdout = String::from_utf8_lossy(&output_result.stdout).to_string();
                         let stderr = String::from_utf8_lossy(&output_result.stderr).to_string();
                         if output.is_file() {
-                            let _ = tokio::fs::remove_file(&output).await;
+                            let _ = fs::remove_file(&output).await;
                         }
                         if i == presets_for_file.len() - 1 {
                             last_error = true;
@@ -373,7 +374,7 @@ pub async fn transfer_video_by_format_in_dir(
                     }
                     Err(e) => {
                         if output.is_file() {
-                            let _ = tokio::fs::remove_file(&output).await;
+                            let _ = fs::remove_file(&output).await;
                         }
                         if i == presets_for_file.len() - 1 {
                             last_error = true;

@@ -1,4 +1,5 @@
 use std::path::Path;
+use tokio::fs;
 
 /// Recursively remove empty child directories within `dir`.
 ///
@@ -10,7 +11,7 @@ use std::path::Path;
 /// Returns an error if a directory removal fails for reasons other than
 /// `PermissionDenied`.
 pub async fn remove_empty_dirs(dir: &Path) -> Result<(), std::io::Error> {
-    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+    let Ok(mut entries) = fs::read_dir(dir).await else {
         return Ok(());
     };
 
@@ -21,7 +22,7 @@ pub async fn remove_empty_dirs(dir: &Path) -> Result<(), std::io::Error> {
         }
         if !super::pack_move::is_dir_having_file(&path).await {
             println!("Remove empty dir: {path:?}");
-            match tokio::fs::remove_dir_all(&path).await {
+            match fs::remove_dir_all(&path).await {
                 Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
                     println!(" x PermissionError!");
                 }

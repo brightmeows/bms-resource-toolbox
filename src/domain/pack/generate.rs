@@ -4,6 +4,8 @@
 //! BMS packs including RAW to HQ and HQ to LQ conversion.
 
 use super::unzip_numeric::unzip_numeric_to_bms_folder;
+use tokio::fs;
+
 use crate::domain::error::DomainError;
 use crate::domain::folder::cleanup::copy_numbered_workdir_names;
 use crate::domain::folder::media::{get_remove_media_rule_oraja, remove_unneed_media_files};
@@ -30,7 +32,7 @@ async fn bms_folder_transfer_audio(
     presets: &[crate::infra::media::audio::AudioPreset],
     options: &TransferOptions,
 ) -> Result<(), DomainError> {
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let bms_dir_path = entry.path();
         if !bms_dir_path.is_dir() {
@@ -56,7 +58,7 @@ async fn bms_folder_transfer_video(
     remove_origin_file: bool,
     remove_existing_target_file: bool,
 ) -> Result<(), DomainError> {
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let bms_dir_path = entry.path();
         if !bms_dir_path.is_dir() {
@@ -175,7 +177,7 @@ pub async fn pack_setup_rawpack_to_hq(pack_dir: &Path, root_dir: &Path) -> Resul
             root_dir.display()
         )));
     }
-    tokio::fs::create_dir_all(root_dir).await?;
+    fs::create_dir_all(root_dir).await?;
     let cache_dir = root_dir.join("CacheDir");
 
     // Step 1: Unzip packs
@@ -184,7 +186,7 @@ pub async fn pack_setup_rawpack_to_hq(pack_dir: &Path, root_dir: &Path) -> Resul
 
     // Remove cache dir if empty
     if !is_dir_having_file(&cache_dir).await {
-        tokio::fs::remove_dir(&cache_dir).await?;
+        fs::remove_dir(&cache_dir).await?;
     }
 
     // Step 2: Set dir names from BMS files
@@ -245,7 +247,7 @@ pub async fn pack_update_rawpack_to_hq(
             "Sync dir is not a valid directory"
         )));
     }
-    tokio::fs::create_dir_all(root_dir).await?;
+    fs::create_dir_all(root_dir).await?;
     let cache_dir = root_dir.join("CacheDir");
 
     // Step 1: Unzip packs
@@ -297,8 +299,10 @@ mod tests {
     async fn test_pack_raw_to_hq_does_not_panic() {
         let root = TempDir::new().unwrap();
         let work = root.path().join("TestSong");
-        std::fs::create_dir_all(&work).unwrap();
-        std::fs::write(work.join("test.wav"), "fake-wav-data").unwrap();
+        fs::create_dir_all(&work).await.unwrap();
+        fs::write(work.join("test.wav"), "fake-wav-data")
+            .await
+            .unwrap();
         let _result = pack_raw_to_hq(root.path()).await;
     }
 
@@ -306,9 +310,13 @@ mod tests {
     async fn test_pack_hq_to_lq_does_not_panic() {
         let root = TempDir::new().unwrap();
         let work = root.path().join("TestSong");
-        std::fs::create_dir_all(&work).unwrap();
-        std::fs::write(work.join("test.flac"), "fake-flac-data").unwrap();
-        std::fs::write(work.join("test.mp4"), "fake-mp4-data").unwrap();
+        fs::create_dir_all(&work).await.unwrap();
+        fs::write(work.join("test.flac"), "fake-flac-data")
+            .await
+            .unwrap();
+        fs::write(work.join("test.mp4"), "fake-mp4-data")
+            .await
+            .unwrap();
         let _result = pack_hq_to_lq(root.path()).await;
     }
 }

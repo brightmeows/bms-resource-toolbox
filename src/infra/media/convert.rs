@@ -6,6 +6,7 @@
 use super::audio::{AudioPreset, get_audio_process_cmd};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use tokio::fs;
 use tokio::process::Command;
 use tracing::info;
 
@@ -47,7 +48,7 @@ pub struct TransferOptions {
 
 async fn collect_tasks(dir: &Path, input_exts: &[&str]) -> Vec<(PathBuf, usize)> {
     let mut tasks: Vec<(PathBuf, usize)> = Vec::new();
-    if let Ok(mut entries) = tokio::fs::read_dir(dir).await {
+    if let Ok(mut entries) = fs::read_dir(dir).await {
         while let Some(entry) = entries.next_entry().await.unwrap_or(None) {
             let path = entry.path();
             if path.is_file()
@@ -66,7 +67,7 @@ async fn collect_tasks(dir: &Path, input_exts: &[&str]) -> Vec<(PathBuf, usize)>
 async fn remove_existing_target(output: &Path, remove: bool) {
     if remove
         && output.is_file()
-        && let Err(e) = tokio::fs::remove_file(output).await
+        && let Err(e) = fs::remove_file(output).await
     {
         println!("Failed to remove existing target file {output:?}: {e}");
     }
@@ -130,7 +131,7 @@ fn spawn_conversion_task(
 
 async fn should_skip_output(output: &Path, remove_existing: bool) -> bool {
     if output.is_file()
-        && let Ok(metadata) = tokio::fs::metadata(output).await
+        && let Ok(metadata) = fs::metadata(output).await
         && metadata.len() > 0
         && !remove_existing
     {
@@ -231,7 +232,7 @@ pub async fn transfer_audio_by_format_in_dir(
                     Ok(_stderr_msg) => {
                         if options.remove_origin_on_success
                             && input.is_file()
-                            && let Err(e) = tokio::fs::remove_file(&input).await
+                            && let Err(e) = fs::remove_file(&input).await
                         {
                             println!("Failed to remove origin file {input:?}: {e}");
                         }
@@ -254,7 +255,7 @@ pub async fn transfer_audio_by_format_in_dir(
                 has_error = true;
                 if options.remove_origin_on_failed
                     && input.is_file()
-                    && let Err(e) = tokio::fs::remove_file(&input).await
+                    && let Err(e) = fs::remove_file(&input).await
                 {
                     println!("Failed to remove failed origin file {input:?}: {e}");
                 }
@@ -359,7 +360,9 @@ mod tests {
     #[tokio::test]
     async fn test_transfer_audio_skips_wrong_ext() {
         let dir = TempDir::new().unwrap();
-        std::fs::write(dir.path().join("test.txt"), "not audio").unwrap();
+        fs::write(dir.path().join("test.txt"), "not audio")
+            .await
+            .unwrap();
         let result = transfer_audio_by_format_in_dir(
             dir.path(),
             &["wav"],

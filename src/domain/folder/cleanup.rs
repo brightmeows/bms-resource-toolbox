@@ -1,6 +1,7 @@
 //! BMS folder cleanup operations.
 
 use std::path::{Path, PathBuf};
+use tokio::fs;
 
 use crate::domain::bms::types::MEDIA_FILE_EXTS;
 use crate::domain::error::DomainError;
@@ -22,7 +23,7 @@ pub async fn copy_numbered_workdir_names(
     }
 
     let mut src_names: Vec<(String, PathBuf)> = Vec::new();
-    if let Ok(mut read_dir) = tokio::fs::read_dir(root_dir_from).await {
+    if let Ok(mut read_dir) = fs::read_dir(root_dir_from).await {
         while let Some(entry) = read_dir.next_entry().await? {
             let path = entry.path();
             if !path.is_dir() {
@@ -35,7 +36,7 @@ pub async fn copy_numbered_workdir_names(
         }
     }
 
-    let mut dst_read_dir = tokio::fs::read_dir(root_dir_to).await?;
+    let mut dst_read_dir = fs::read_dir(root_dir_to).await?;
     while let Some(entry) = dst_read_dir.next_entry().await? {
         let dst_path = entry.path();
         if !dst_path.is_dir() {
@@ -60,7 +61,7 @@ pub async fn copy_numbered_workdir_names(
                         dst_path.file_name(),
                         target_path.file_name()
                     );
-                    tokio::fs::rename(&dst_path, &target_path).await?;
+                    fs::rename(&dst_path, &target_path).await?;
                 }
                 break;
             }
@@ -91,7 +92,7 @@ pub async fn remove_zero_sized_media_files(
             continue;
         }
 
-        let mut read_dir = tokio::fs::read_dir(&current_dir).await?;
+        let mut read_dir = fs::read_dir(&current_dir).await?;
         let mut entries = Vec::new();
         while let Some(entry) = read_dir.next_entry().await? {
             entries.push(entry);
@@ -112,7 +113,7 @@ pub async fn remove_zero_sized_media_files(
                     || element_name.starts_with("._");
 
                 if is_temp_file {
-                    match tokio::fs::remove_file(&element_path).await {
+                    match fs::remove_file(&element_path).await {
                         Ok(()) => println!(" - Remove temp file: {}", element_path.display()),
                         Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
                             println!(" x PermissionError!");
@@ -129,9 +130,9 @@ pub async fn remove_zero_sized_media_files(
                     continue;
                 }
 
-                match tokio::fs::metadata(&element_path).await {
+                match fs::metadata(&element_path).await {
                     Ok(metadata) if metadata.len() == 0 => {
-                        match tokio::fs::remove_file(&element_path).await {
+                        match fs::remove_file(&element_path).await {
                             Ok(()) => {
                                 println!(" - Remove empty file: {}", element_path.display());
                             }
@@ -161,10 +162,14 @@ mod tests {
     async fn test_copy_numbered_workdir_names() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        std::fs::create_dir_all(src.path().join("1. Song A [Artist]")).unwrap();
-        std::fs::create_dir_all(src.path().join("2. Song B [Artist]")).unwrap();
-        std::fs::create_dir_all(dst.path().join("1")).unwrap();
-        std::fs::create_dir_all(dst.path().join("2")).unwrap();
+        fs::create_dir_all(src.path().join("1. Song A [Artist]"))
+            .await
+            .unwrap();
+        fs::create_dir_all(src.path().join("2. Song B [Artist]"))
+            .await
+            .unwrap();
+        fs::create_dir_all(dst.path().join("1")).await.unwrap();
+        fs::create_dir_all(dst.path().join("2")).await.unwrap();
 
         copy_numbered_workdir_names(src.path(), dst.path())
             .await
@@ -188,8 +193,10 @@ mod tests {
     async fn test_copy_numbered_workdir_skip_non_numeric_dst() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        std::fs::create_dir_all(src.path().join("1. Title")).unwrap();
-        std::fs::create_dir_all(dst.path().join("MySong")).unwrap();
+        fs::create_dir_all(src.path().join("1. Title"))
+            .await
+            .unwrap();
+        fs::create_dir_all(dst.path().join("MySong")).await.unwrap();
 
         copy_numbered_workdir_names(src.path(), dst.path())
             .await
@@ -204,10 +211,16 @@ mod tests {
     #[tokio::test]
     async fn test_remove_zero_sized_media() {
         let root = TempDir::new().unwrap();
-        std::fs::write(root.path().join("empty.wav"), "").unwrap();
-        std::fs::write(root.path().join("full.wav"), "data").unwrap();
-        std::fs::write(root.path().join("desktop.ini"), "").unwrap();
-        std::fs::write(root.path().join("normal.txt"), "text").unwrap();
+        fs::write(root.path().join("empty.wav"), "").await.unwrap();
+        fs::write(root.path().join("full.wav"), "data")
+            .await
+            .unwrap();
+        fs::write(root.path().join("desktop.ini"), "")
+            .await
+            .unwrap();
+        fs::write(root.path().join("normal.txt"), "text")
+            .await
+            .unwrap();
 
         remove_zero_sized_media_files(root.path(), false)
             .await
@@ -232,8 +245,8 @@ mod tests {
     async fn test_remove_zero_sized_recursive() {
         let root = TempDir::new().unwrap();
         let sub = root.path().join("sub");
-        std::fs::create_dir_all(&sub).unwrap();
-        std::fs::write(sub.join("empty.mp4"), "").unwrap();
+        fs::create_dir_all(&sub).await.unwrap();
+        fs::write(sub.join("empty.mp4"), "").await.unwrap();
 
         remove_zero_sized_media_files(root.path(), false)
             .await

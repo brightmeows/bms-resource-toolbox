@@ -7,6 +7,7 @@ use std::path::Path;
 use crate::domain::bms::dir::get_dir_bms_info;
 use crate::domain::error::DomainError;
 use rust_xlsxwriter::Workbook;
+use tokio::fs;
 
 /// Check if numbered folders exist in a BMS event directory
 pub fn check_num_folder(bms_dir: &Path, max_count: i32) {
@@ -29,7 +30,7 @@ pub async fn create_num_folders(root_dir: &Path, folder_count: i32) -> Result<()
 
     // Get existing elements to check for conflicts
     let mut existing_elements: Vec<String> = Vec::new();
-    if let Ok(mut read_dir) = tokio::fs::read_dir(root_dir).await {
+    if let Ok(mut read_dir) = fs::read_dir(root_dir).await {
         while let Some(entry) = read_dir.next_entry().await? {
             if !entry.path().is_dir() {
                 continue;
@@ -56,7 +57,7 @@ pub async fn create_num_folders(root_dir: &Path, folder_count: i32) -> Result<()
             continue;
         }
 
-        tokio::fs::create_dir_all(&folder_path).await?;
+        fs::create_dir_all(&folder_path).await?;
         println!("  Created folder {i}");
     }
 
@@ -83,7 +84,7 @@ pub async fn generate_work_info_table(root_dir: &Path) -> Result<(), DomainError
         .set_name("BMS List")
         .map_err(|e| DomainError::Archive(anyhow::anyhow!("{e}")))?;
 
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let work_path = entry.path();
         if !work_path.is_dir() {
@@ -136,11 +137,11 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    #[test]
-    fn test_check_num_folder_exist() {
+    #[tokio::test]
+    async fn test_check_num_folder_exist() {
         let root = TempDir::new().unwrap();
-        std::fs::create_dir_all(root.path().join("1")).unwrap();
-        std::fs::create_dir_all(root.path().join("2")).unwrap();
+        fs::create_dir_all(root.path().join("1")).await.unwrap();
+        fs::create_dir_all(root.path().join("2")).await.unwrap();
         check_num_folder(root.path(), 3);
     }
 
@@ -159,7 +160,9 @@ mod tests {
     #[tokio::test]
     async fn test_create_num_folders_skip_conflict() {
         let root = TempDir::new().unwrap();
-        std::fs::create_dir_all(root.path().join("1. Title")).unwrap();
+        fs::create_dir_all(root.path().join("1. Title"))
+            .await
+            .unwrap();
         create_num_folders(root.path(), 3).await.unwrap();
         assert!(root.path().join("2").is_dir());
         assert!(root.path().join("3").is_dir());
@@ -170,11 +173,12 @@ mod tests {
         let root = TempDir::new().unwrap();
         for i in 1..=3 {
             let dir = root.path().join(i.to_string());
-            std::fs::create_dir_all(&dir).unwrap();
-            std::fs::write(
+            fs::create_dir_all(&dir).await.unwrap();
+            fs::write(
                 dir.join("test.bms"),
                 format!("#TITLE Song{i}\n#ARTIST Artist{i}\n#GENRE Genre{i}\n"),
             )
+            .await
             .unwrap();
         }
         generate_work_info_table(root.path()).await.unwrap();

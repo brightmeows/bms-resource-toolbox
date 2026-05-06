@@ -6,6 +6,8 @@
 // BMS timing values stored as integers; truncation is intentional.
 #![expect(clippy::cast_possible_truncation)]
 
+use tokio::fs;
+
 use crate::domain::bms::types::{BMSDifficulty, BMSInfo};
 use std::path::Path;
 
@@ -101,7 +103,7 @@ pub async fn parse_bmson_file<P: AsRef<Path>>(
     path: P,
     encoding: Option<&str>,
 ) -> Result<BMSInfo, std::io::Error> {
-    let bytes = tokio::fs::read(path.as_ref()).await?;
+    let bytes = fs::read(path.as_ref()).await?;
     let content = crate::domain::bms::encoding::get_bms_file_str(&bytes, encoding);
     match parse_bmson_content(&content) {
         Ok(info) => Ok(info),

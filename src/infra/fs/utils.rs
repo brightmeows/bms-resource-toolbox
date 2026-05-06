@@ -1,4 +1,5 @@
 use std::path::Path;
+use tokio::fs;
 
 /// Get the file extension of a path (without the dot).
 ///
@@ -24,9 +25,9 @@ pub async fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), std:
         ));
     }
 
-    tokio::fs::create_dir_all(target).await?;
+    fs::create_dir_all(target).await?;
 
-    let mut entries = tokio::fs::read_dir(source).await?;
+    let mut entries = fs::read_dir(source).await?;
     while let Some(entry) = entries.next_entry().await? {
         let source_path = entry.path();
         let target_path = target.join(entry.file_name());
@@ -34,7 +35,7 @@ pub async fn copy_dir_recursive(source: &Path, target: &Path) -> Result<(), std:
         if source_path.is_dir() {
             Box::pin(copy_dir_recursive(&source_path, &target_path)).await?;
         } else {
-            tokio::fs::copy(&source_path, &target_path).await?;
+            fs::copy(&source_path, &target_path).await?;
         }
     }
 

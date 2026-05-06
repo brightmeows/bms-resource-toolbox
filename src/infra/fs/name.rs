@@ -1,4 +1,5 @@
 use std::path::Path;
+use tokio::fs;
 
 /// Replace characters invalid in filenames with fullwidth alternatives.
 ///
@@ -40,7 +41,7 @@ pub async fn bms_dir_similarity(dir_path_a: &Path, dir_path_b: &Path) -> f64 {
         let mut media_set = HashSet::new();
         let mut non_media_set = HashSet::new();
 
-        let Ok(mut entries) = tokio::fs::read_dir(dir_path).await else {
+        let Ok(mut entries) = fs::read_dir(dir_path).await else {
             return (file_set, media_set, non_media_set);
         };
 
@@ -105,10 +106,10 @@ mod tests {
     async fn test_similarity_no_non_media() {
         let dir_a = TempDir::new().unwrap();
         let dir_b = TempDir::new().unwrap();
-        tokio::fs::write(dir_a.path().join("song.flac"), "data")
+        fs::write(dir_a.path().join("song.flac"), "data")
             .await
             .unwrap();
-        tokio::fs::write(dir_b.path().join("song.flac"), "data")
+        fs::write(dir_b.path().join("song.flac"), "data")
             .await
             .unwrap();
 
@@ -120,16 +121,16 @@ mod tests {
     async fn test_similarity_normal() {
         let dir_a = TempDir::new().unwrap();
         let dir_b = TempDir::new().unwrap();
-        tokio::fs::write(dir_a.path().join("song.flac"), "data")
+        fs::write(dir_a.path().join("song.flac"), "data")
             .await
             .unwrap();
-        tokio::fs::write(dir_a.path().join("readme.txt"), "info")
+        fs::write(dir_a.path().join("readme.txt"), "info")
             .await
             .unwrap();
-        tokio::fs::write(dir_b.path().join("song.flac"), "data")
+        fs::write(dir_b.path().join("song.flac"), "data")
             .await
             .unwrap();
-        tokio::fs::write(dir_b.path().join("readme.txt"), "info")
+        fs::write(dir_b.path().join("readme.txt"), "info")
             .await
             .unwrap();
 

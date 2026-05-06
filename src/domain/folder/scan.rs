@@ -1,6 +1,7 @@
 //! BMS folder scanning operations.
 
 use std::path::Path;
+use tokio::fs;
 
 use crate::domain::error::DomainError;
 
@@ -18,7 +19,7 @@ pub async fn scan_folder_similar_folders(
     }
 
     let mut dir_names: Vec<String> = Vec::new();
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         if !entry.path().is_dir() {
             continue;
@@ -130,16 +131,20 @@ mod tests {
     #[tokio::test]
     async fn test_scan_similar_folders_detects_similar() {
         let root = TempDir::new().unwrap();
-        std::fs::create_dir_all(root.path().join("MySong Hyper")).unwrap();
-        std::fs::create_dir_all(root.path().join("MySong Another")).unwrap();
+        fs::create_dir_all(root.path().join("MySong Hyper"))
+            .await
+            .unwrap();
+        fs::create_dir_all(root.path().join("MySong Another"))
+            .await
+            .unwrap();
         scan_folder_similar_folders(root.path(), 0.5).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_scan_similar_folders_no_false_positive() {
         let root = TempDir::new().unwrap();
-        std::fs::create_dir_all(root.path().join("Alpha")).unwrap();
-        std::fs::create_dir_all(root.path().join("Beta")).unwrap();
+        fs::create_dir_all(root.path().join("Alpha")).await.unwrap();
+        fs::create_dir_all(root.path().join("Beta")).await.unwrap();
         scan_folder_similar_folders(root.path(), 0.9).await.unwrap();
     }
 

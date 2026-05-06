@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use tokio::fs;
 
 use crate::domain::error::DomainError;
 
@@ -30,7 +31,7 @@ async fn workdir_remove_unneed_media_files(
     let mut remove_pairs: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut removed_files: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
 
-    let mut read_dir = tokio::fs::read_dir(work_dir).await?;
+    let mut read_dir = fs::read_dir(work_dir).await?;
     let mut entries = Vec::new();
     while let Some(entry) = read_dir.next_entry().await? {
         entries.push(entry);
@@ -52,7 +53,7 @@ async fn workdir_remove_unneed_media_files(
                 continue;
             }
 
-            if tokio::fs::metadata(&check_file_path)
+            if fs::metadata(&check_file_path)
                 .await
                 .is_ok_and(|m| m.len() == 0)
             {
@@ -80,13 +81,13 @@ async fn workdir_remove_unneed_media_files(
             replacing_file_path.file_name(),
             check_file_path.file_name()
         );
-        let _ = tokio::fs::remove_file(replacing_file_path).await;
+        let _ = fs::remove_file(replacing_file_path).await;
     }
 
     super::cleanup::remove_zero_sized_media_files(work_dir, false).await?;
 
     let mut ext_count: HashMap<String, Vec<String>> = HashMap::new();
-    let mut count_read_dir = tokio::fs::read_dir(work_dir).await?;
+    let mut count_read_dir = fs::read_dir(work_dir).await?;
     while let Some(entry) = count_read_dir.next_entry().await? {
         let count_file_path = entry.path();
         if !count_file_path.is_file() {
@@ -127,7 +128,7 @@ pub async fn remove_unneed_media_files(
 ) -> Result<(), DomainError> {
     println!("Selected: {rule:?}");
 
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let bms_dir_path = entry.path();
         if !bms_dir_path.is_dir() {
@@ -144,18 +145,18 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn workdir_path(root: &Path) -> PathBuf {
+    async fn workdir_path(root: &Path) -> PathBuf {
         let wd = root.join("work");
-        std::fs::create_dir_all(&wd).unwrap();
+        fs::create_dir_all(&wd).await.unwrap();
         wd
     }
 
     #[tokio::test]
     async fn test_remove_media_mp4_removes_avi() {
         let dir = TempDir::new().unwrap();
-        let wd = workdir_path(dir.path());
-        tokio::fs::write(wd.join("v.mp4"), "mp4").await.unwrap();
-        tokio::fs::write(wd.join("v.avi"), "avi").await.unwrap();
+        let wd = workdir_path(dir.path()).await;
+        fs::write(wd.join("v.mp4"), "mp4").await.unwrap();
+        fs::write(wd.join("v.avi"), "avi").await.unwrap();
         remove_unneed_media_files(dir.path(), get_remove_media_rule_oraja())
             .await
             .unwrap();
@@ -165,9 +166,9 @@ mod tests {
     #[tokio::test]
     async fn test_remove_media_flac_removes_wav() {
         let dir = TempDir::new().unwrap();
-        let wd = workdir_path(dir.path());
-        tokio::fs::write(wd.join("a.flac"), "flac").await.unwrap();
-        tokio::fs::write(wd.join("a.wav"), "wav").await.unwrap();
+        let wd = workdir_path(dir.path()).await;
+        fs::write(wd.join("a.flac"), "flac").await.unwrap();
+        fs::write(wd.join("a.wav"), "wav").await.unwrap();
         remove_unneed_media_files(dir.path(), get_remove_media_rule_oraja())
             .await
             .unwrap();
@@ -177,9 +178,9 @@ mod tests {
     #[tokio::test]
     async fn test_remove_media_flac_wav_removes_ogg() {
         let dir = TempDir::new().unwrap();
-        let wd = workdir_path(dir.path());
-        tokio::fs::write(wd.join("a.flac"), "flac").await.unwrap();
-        tokio::fs::write(wd.join("a.ogg"), "ogg").await.unwrap();
+        let wd = workdir_path(dir.path()).await;
+        fs::write(wd.join("a.flac"), "flac").await.unwrap();
+        fs::write(wd.join("a.ogg"), "ogg").await.unwrap();
         remove_unneed_media_files(dir.path(), get_remove_media_rule_oraja())
             .await
             .unwrap();
@@ -189,9 +190,9 @@ mod tests {
     #[tokio::test]
     async fn test_remove_media_mp4_removes_wmv() {
         let dir = TempDir::new().unwrap();
-        let wd = workdir_path(dir.path());
-        tokio::fs::write(wd.join("v.mp4"), "mp4").await.unwrap();
-        tokio::fs::write(wd.join("v.wmv"), "wmv").await.unwrap();
+        let wd = workdir_path(dir.path()).await;
+        fs::write(wd.join("v.mp4"), "mp4").await.unwrap();
+        fs::write(wd.join("v.wmv"), "wmv").await.unwrap();
         remove_unneed_media_files(dir.path(), get_remove_media_rule_oraja())
             .await
             .unwrap();
@@ -201,8 +202,8 @@ mod tests {
     #[tokio::test]
     async fn test_remove_media_no_duplicate_no_removal() {
         let dir = TempDir::new().unwrap();
-        let wd = workdir_path(dir.path());
-        tokio::fs::write(wd.join("a.flac"), "flac").await.unwrap();
+        let wd = workdir_path(dir.path()).await;
+        fs::write(wd.join("a.flac"), "flac").await.unwrap();
         remove_unneed_media_files(dir.path(), get_remove_media_rule_oraja())
             .await
             .unwrap();

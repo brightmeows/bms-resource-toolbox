@@ -1,6 +1,7 @@
 //! Name-based archive extraction pipeline.
 
 use std::path::Path;
+use tokio::fs;
 
 use crate::domain::bms::types::CHART_FILE_EXTS;
 use crate::domain::error::DomainError;
@@ -37,10 +38,10 @@ pub async fn unzip_with_name_to_bms_folder(
 
 async fn create_directories(cache_dir: &Path, root_dir: &Path) -> Result<(), DomainError> {
     if !cache_dir.is_dir() {
-        tokio::fs::create_dir_all(cache_dir).await?;
+        fs::create_dir_all(cache_dir).await?;
     }
     if !root_dir.is_dir() {
-        tokio::fs::create_dir_all(root_dir).await?;
+        fs::create_dir_all(root_dir).await?;
     }
     Ok(())
 }
@@ -48,7 +49,7 @@ async fn create_directories(cache_dir: &Path, root_dir: &Path) -> Result<(), Dom
 async fn get_archive_files(pack_dir: &Path) -> Vec<String> {
     let mut archive_names = Vec::new();
 
-    if let Ok(mut read_dir) = tokio::fs::read_dir(pack_dir).await {
+    if let Ok(mut read_dir) = fs::read_dir(pack_dir).await {
         while let Ok(Some(entry)) = read_dir.next_entry().await {
             let path = entry.path();
             if !path.is_file() {
@@ -94,7 +95,7 @@ async fn process_single_archive(
 
     let target_dir_path = root_dir.join(&file_stem);
     move_cache_to_bms_dir(&cache_dir_path, &target_dir_path).await?;
-    let _ = tokio::fs::remove_dir(&cache_dir_path).await;
+    let _ = fs::remove_dir(&cache_dir_path).await;
     move_original_to_bofttpacks(&file_path, pack_dir, file_name).await;
 
     println!("Finished processing: {file_name}");
@@ -104,7 +105,7 @@ async fn process_single_archive(
 async fn prepare_cache_directory(cache_dir_path: &Path) -> Result<(), DomainError> {
     if cache_dir_path.is_dir() {
         let has_files = {
-            let mut read_dir = tokio::fs::read_dir(cache_dir_path).await?;
+            let mut read_dir = fs::read_dir(cache_dir_path).await?;
             loop {
                 match read_dir.next_entry().await {
                     Ok(Some(entry)) => {
@@ -118,10 +119,10 @@ async fn prepare_cache_directory(cache_dir_path: &Path) -> Result<(), DomainErro
         };
         if has_files {
             println!("Removing existing cache dir: {cache_dir_path:?}");
-            tokio::fs::remove_dir_all(cache_dir_path).await?;
+            fs::remove_dir_all(cache_dir_path).await?;
         }
     }
-    tokio::fs::create_dir_all(cache_dir_path).await?;
+    fs::create_dir_all(cache_dir_path).await?;
     Ok(())
 }
 
@@ -134,24 +135,24 @@ pub(super) async fn move_cache_to_bms_dir(
 ) -> Result<(), DomainError> {
     println!("Moving files from {cache_dir_path:?} to {target_dir_path:?}");
 
-    let mut read_dir = tokio::fs::read_dir(cache_dir_path).await?;
+    let mut read_dir = fs::read_dir(cache_dir_path).await?;
     let mut entries = Vec::new();
     while let Some(entry) = read_dir.next_entry().await? {
         entries.push(entry);
     }
 
-    tokio::fs::create_dir_all(target_dir_path).await?;
+    fs::create_dir_all(target_dir_path).await?;
 
     for entry in entries {
         let src_path = entry.path();
         let dst_path = target_dir_path.join(src_path.file_name().unwrap_or_default());
-        if tokio::fs::rename(&src_path, &dst_path).await.is_err() {
+        if fs::rename(&src_path, &dst_path).await.is_err() {
             if src_path.is_dir() {
                 copy_dir_recursive(&src_path, &dst_path).await?;
-                tokio::fs::remove_dir_all(&src_path).await?;
+                fs::remove_dir_all(&src_path).await?;
             } else {
-                tokio::fs::copy(&src_path, &dst_path).await?;
-                tokio::fs::remove_file(&src_path).await?;
+                fs::copy(&src_path, &dst_path).await?;
+                fs::remove_file(&src_path).await?;
             }
         }
     }
@@ -162,10 +163,10 @@ pub(super) async fn move_cache_to_bms_dir(
 async fn move_original_to_bofttpacks(file_path: &Path, pack_dir: &Path, file_name: &str) {
     let used_pack_dir = pack_dir.join("BOFTTPacks");
     if !used_pack_dir.is_dir() {
-        let _ = tokio::fs::create_dir_all(&used_pack_dir).await;
+        let _ = fs::create_dir_all(&used_pack_dir).await;
     }
     let target_file_path = used_pack_dir.join(file_name);
-    let _ = tokio::fs::rename(file_path, &target_file_path).await;
+    let _ = fs::rename(file_path, &target_file_path).await;
 }
 
 #[cfg(test)]
@@ -179,7 +180,7 @@ mod tests {
         let cache = TempDir::new().unwrap();
         let root = TempDir::new().unwrap();
         let zip_path = pack.path().join("TestPack.zip");
-        let file = std::fs::File::create(&zip_path).unwrap();
+        let file = fs::File::create(&zip_path).await.unwrap().into_std().await;
         let mut zip = zip::ZipWriter::new(file);
         zip.add_directory::<_, ()>("song/", zip::write::FileOptions::default())
             .unwrap();

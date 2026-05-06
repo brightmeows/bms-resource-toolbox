@@ -1,6 +1,7 @@
 //! Numeric-prefixed archive extraction pipeline.
 
 use std::path::{Path, PathBuf};
+use tokio::fs;
 
 use crate::domain::bms::types::CHART_FILE_EXTS;
 use crate::domain::error::DomainError;
@@ -28,10 +29,10 @@ pub async fn unzip_numeric_to_bms_folder(
     println!("Unzip numeric to BMS folder: {pack_dir:?} -> {root_dir:?}");
 
     if !cache_dir.is_dir() {
-        tokio::fs::create_dir_all(cache_dir).await?;
+        fs::create_dir_all(cache_dir).await?;
     }
     if !root_dir.is_dir() {
-        tokio::fs::create_dir_all(root_dir).await?;
+        fs::create_dir_all(root_dir).await?;
     }
 
     let num_set_file_names = get_num_set_file_names(pack_dir).await;
@@ -51,10 +52,10 @@ pub async fn unzip_numeric_to_bms_folder(
         let cache_dir_path = cache_dir.join(id_str);
 
         if cache_dir_path.is_dir() && is_dir_having_file(&cache_dir_path).await {
-            tokio::fs::remove_dir_all(&cache_dir_path).await?;
+            fs::remove_dir_all(&cache_dir_path).await?;
         }
         if !cache_dir_path.is_dir() {
-            tokio::fs::create_dir_all(&cache_dir_path).await?;
+            fs::create_dir_all(&cache_dir_path).await?;
         }
 
         println!("Extracting {file_path:?} to {cache_dir_path:?}");
@@ -67,7 +68,7 @@ pub async fn unzip_numeric_to_bms_folder(
 
         let mut target_dir_path: Option<PathBuf> = None;
 
-        if let Ok(mut read_dir) = tokio::fs::read_dir(root_dir).await {
+        if let Ok(mut read_dir) = fs::read_dir(root_dir).await {
             while let Some(entry) = read_dir.next_entry().await? {
                 let dir_path = entry.path();
                 if !dir_path.is_dir() {
@@ -93,15 +94,15 @@ pub async fn unzip_numeric_to_bms_folder(
         let target_dir_path = target_dir_path.unwrap_or_else(|| root_dir.join(id_str));
 
         super::unzip_name::move_cache_to_bms_dir(&cache_dir_path, &target_dir_path).await?;
-        let _ = tokio::fs::remove_dir(&cache_dir_path).await;
+        let _ = fs::remove_dir(&cache_dir_path).await;
 
         println!("Finished processing: {file_name}");
         let used_pack_dir = pack_dir.join("BOFTTPacks");
         if !used_pack_dir.is_dir() {
-            tokio::fs::create_dir_all(&used_pack_dir).await?;
+            fs::create_dir_all(&used_pack_dir).await?;
         }
         let target_file_path = used_pack_dir.join(file_name);
-        tokio::fs::rename(&file_path, &target_file_path).await.ok();
+        fs::rename(&file_path, &target_file_path).await.ok();
     }
 
     Ok(())
@@ -121,7 +122,7 @@ pub async fn set_file_num(dir: &Path, file_idx: usize, num: i32) -> Result<(), D
 
     let mut file_names: Vec<String> = Vec::new();
 
-    if let Ok(mut read_dir) = tokio::fs::read_dir(dir).await {
+    if let Ok(mut read_dir) = fs::read_dir(dir).await {
         while let Some(entry) = read_dir.next_entry().await? {
             let path = entry.path();
             if !path.is_file() {
@@ -143,10 +144,7 @@ pub async fn set_file_num(dir: &Path, file_idx: usize, num: i32) -> Result<(), D
                 continue;
             }
 
-            if tokio::fs::metadata(&path)
-                .await
-                .map_or(true, |m| m.len() == 0)
-            {
+            if fs::metadata(&path).await.map_or(true, |m| m.len() == 0) {
                 continue;
             }
 
@@ -182,7 +180,7 @@ pub async fn set_file_num(dir: &Path, file_idx: usize, num: i32) -> Result<(), D
     let new_file_path = dir.join(&new_file_name);
 
     println!("Rename {file_name} to {new_file_name}");
-    tokio::fs::rename(&file_path, &new_file_path).await?;
+    fs::rename(&file_path, &new_file_path).await?;
 
     Ok(())
 }
@@ -195,7 +193,9 @@ mod tests {
     #[tokio::test]
     async fn test_set_file_num_basic() {
         let dir = TempDir::new().unwrap();
-        std::fs::write(dir.path().join("song.bms"), "#TITLE Song\n").unwrap();
+        fs::write(dir.path().join("song.bms"), "#TITLE Song\n")
+            .await
+            .unwrap();
         set_file_num(dir.path(), 0, 42).await.unwrap();
         assert!(
             dir.path().join("42 song.bms").is_file(),
@@ -210,7 +210,9 @@ mod tests {
     #[tokio::test]
     async fn test_set_file_num_skips_already_numbered() {
         let dir = TempDir::new().unwrap();
-        std::fs::write(dir.path().join("10 song.bms"), "#TITLE Song\n").unwrap();
+        fs::write(dir.path().join("10 song.bms"), "#TITLE Song\n")
+            .await
+            .unwrap();
         set_file_num(dir.path(), 0, 99).await.unwrap();
         assert!(
             dir.path().join("10 song.bms").is_file(),
@@ -221,7 +223,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_file_num_skips_empty_files() {
         let dir = TempDir::new().unwrap();
-        std::fs::write(dir.path().join("song.bms"), "").unwrap();
+        fs::write(dir.path().join("song.bms"), "").await.unwrap();
         set_file_num(dir.path(), 0, 1).await.unwrap();
         assert!(dir.path().join("song.bms").is_file());
     }

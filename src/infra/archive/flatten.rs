@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
+use tokio::fs;
 
 use crate::infra::fs::pack_move::{
     DEFAULT_MOVE_OPTIONS, DEFAULT_REPLACE_OPTIONS, move_elements_across_dir,
@@ -12,7 +13,7 @@ use crate::infra::fs::pack_move::{
 pub async fn get_num_set_file_names(dir: &Path) -> Vec<String> {
     let mut names = Vec::new();
 
-    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+    let Ok(mut entries) = fs::read_dir(dir).await else {
         return names;
     };
 
@@ -51,7 +52,7 @@ pub async fn move_out_files_in_folder_in_cache_dir(
         let mut cache_file_count: usize = 0;
         let mut inner_dir_name: Option<String> = None;
 
-        let Ok(mut entries) = tokio::fs::read_dir(cache_dir_path).await else {
+        let Ok(mut entries) = fs::read_dir(cache_dir_path).await else {
             break;
         };
 
@@ -65,7 +66,7 @@ pub async fn move_out_files_in_folder_in_cache_dir(
             if cache_path.is_dir() {
                 if cache_name == "__MACOSX" {
                     println!("Removing __MACOSX directory: {cache_path:?}");
-                    if let Err(e) = tokio::fs::remove_dir_all(&cache_path).await {
+                    if let Err(e) = fs::remove_dir_all(&cache_path).await {
                         println!("Failed to remove __MACOSX: {e}");
                     }
                     continue;
@@ -113,7 +114,7 @@ pub async fn move_out_files_in_folder_in_cache_dir(
             if inner_inner_dir_path.is_dir() {
                 println!(" - Renaming inner inner dir name: {inner_inner_dir_path:?}");
                 let new_path = inner_inner_dir_path.with_file_name(format!("{inner_name}-rep"));
-                if let Err(e) = tokio::fs::rename(&inner_inner_dir_path, &new_path).await {
+                if let Err(e) = fs::rename(&inner_inner_dir_path, &new_path).await {
                     println!("Failed to rename inner inner dir: {e}");
                 }
             }
@@ -128,7 +129,7 @@ pub async fn move_out_files_in_folder_in_cache_dir(
             {
                 println!("Failed to move elements: {e}");
             }
-            let _ = tokio::fs::remove_dir(&inner_dir_path).await;
+            let _ = fs::remove_dir(&inner_dir_path).await;
         }
     }
 
@@ -140,7 +141,7 @@ pub async fn move_out_files_in_folder_in_cache_dir(
 
     if final_folder_count == 0 && final_file_count == 0 {
         println!(" !_! {}: Cache is Empty!", cache_dir_path.display());
-        let _ = tokio::fs::remove_dir(cache_dir_path).await;
+        let _ = fs::remove_dir(cache_dir_path).await;
         return false;
     }
 
@@ -156,7 +157,7 @@ pub async fn move_out_files_in_folder_in_cache_dir(
 }
 
 async fn has_file_with_ext_recursive(dir: &Path, exts: &[&str]) -> bool {
-    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+    let Ok(mut entries) = fs::read_dir(dir).await else {
         return false;
     };
     while let Ok(Some(entry)) = entries.next_entry().await {
@@ -177,7 +178,7 @@ async fn count_cache_contents(dir: &Path) -> (usize, usize) {
     let mut folder_count = 0;
     let mut file_count = 0;
 
-    if let Ok(mut entries) = tokio::fs::read_dir(dir).await {
+    if let Ok(mut entries) = fs::read_dir(dir).await {
         while let Ok(Some(entry)) = entries.next_entry().await {
             if entry.path().is_dir() {
                 folder_count += 1;
@@ -199,10 +200,8 @@ mod tests {
     async fn test_flatten_single_nested() {
         let cache = TempDir::new().unwrap();
         let inner = cache.path().join("inner");
-        tokio::fs::create_dir_all(&inner).await.unwrap();
-        tokio::fs::write(inner.join("song.wav"), "data")
-            .await
-            .unwrap();
+        fs::create_dir_all(&inner).await.unwrap();
+        fs::write(inner.join("song.wav"), "data").await.unwrap();
         assert!(move_out_files_in_folder_in_cache_dir(cache.path(), &[".bms"]).await);
         assert!(cache.path().join("song.wav").is_file());
         assert!(!inner.exists());
@@ -212,10 +211,8 @@ mod tests {
     async fn test_flatten_multi_level() {
         let cache = TempDir::new().unwrap();
         let deep = cache.path().join("a").join("b").join("c");
-        tokio::fs::create_dir_all(&deep).await.unwrap();
-        tokio::fs::write(deep.join("song.wav"), "data")
-            .await
-            .unwrap();
+        fs::create_dir_all(&deep).await.unwrap();
+        fs::write(deep.join("song.wav"), "data").await.unwrap();
         assert!(move_out_files_in_folder_in_cache_dir(cache.path(), &[".bms"]).await);
         assert!(cache.path().join("song.wav").is_file());
     }
@@ -223,10 +220,10 @@ mod tests {
     #[tokio::test]
     async fn test_flatten_macosx_removed() {
         let cache = TempDir::new().unwrap();
-        tokio::fs::create_dir_all(cache.path().join("__MACOSX"))
+        fs::create_dir_all(cache.path().join("__MACOSX"))
             .await
             .unwrap();
-        tokio::fs::write(cache.path().join("song.wav"), "data")
+        fs::write(cache.path().join("song.wav"), "data")
             .await
             .unwrap();
         assert!(move_out_files_in_folder_in_cache_dir(cache.path(), &[".bms"]).await);
@@ -244,9 +241,7 @@ mod tests {
     #[tokio::test]
     async fn test_flatten_already_flat() {
         let cache = TempDir::new().unwrap();
-        tokio::fs::write(cache.path().join("a.bms"), "data")
-            .await
-            .unwrap();
+        fs::write(cache.path().join("a.bms"), "data").await.unwrap();
         assert!(move_out_files_in_folder_in_cache_dir(cache.path(), &[".bms"]).await);
     }
 

@@ -6,6 +6,7 @@
 use regex::Regex;
 use std::path::Path;
 use std::sync::LazyLock;
+use tokio::fs;
 
 use crate::domain::error::DomainError;
 use crate::infra::fs::pack_move::{
@@ -97,7 +98,7 @@ pub async fn split_folders_with_first_char(root_dir: &Path) -> Result<(), Domain
         return Ok(());
     };
 
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     let mut entries = Vec::new();
     while let Some(entry) = read_dir.next_entry().await? {
         entries.push(entry);
@@ -115,16 +116,16 @@ pub async fn split_folders_with_first_char(root_dir: &Path) -> Result<(), Domain
         let target_dir = parent_dir.join(format!("{root_folder_name} [{rule}]"));
 
         if !target_dir.is_dir() {
-            tokio::fs::create_dir_all(&target_dir).await?;
+            fs::create_dir_all(&target_dir).await?;
         }
 
         let target_path = target_dir.join(element_name);
         println!("Moving {element_path:?} -> {target_path:?}");
-        tokio::fs::rename(&element_path, &target_path).await?;
+        fs::rename(&element_path, &target_path).await?;
     }
 
     if !is_dir_having_file(root_dir).await {
-        let _ = tokio::fs::remove_dir(root_dir).await;
+        let _ = fs::remove_dir(root_dir).await;
     }
 
     Ok(())
@@ -143,7 +144,7 @@ pub async fn undo_split_pack(root_dir: &Path) -> Result<(), DomainError> {
 
     let mut pairs: Vec<(std::path::PathBuf, std::path::PathBuf)> = Vec::new();
 
-    if let Ok(mut read_dir) = tokio::fs::read_dir(parent_dir).await {
+    if let Ok(mut read_dir) = fs::read_dir(parent_dir).await {
         while let Some(entry) = read_dir.next_entry().await? {
             let folder_path = entry.path();
             if !folder_path.is_dir() {
@@ -190,7 +191,7 @@ pub async fn move_works_in_pack(
 
     let mut move_count = 0;
 
-    if let Ok(mut read_dir) = tokio::fs::read_dir(root_dir_from).await {
+    if let Ok(mut read_dir) = fs::read_dir(root_dir_from).await {
         while let Some(entry) = read_dir.next_entry().await? {
             let bms_dir = entry.path();
             if !bms_dir.is_dir() {
@@ -235,7 +236,7 @@ pub async fn move_works_in_pack(
 ///
 /// Returns an error if directory operations fail.
 pub async fn move_out_works(target_root_dir: &Path) -> Result<(), DomainError> {
-    let mut read_dir = tokio::fs::read_dir(target_root_dir).await?;
+    let mut read_dir = fs::read_dir(target_root_dir).await?;
     let mut entries = Vec::new();
     while let Some(entry) = read_dir.next_entry().await? {
         entries.push(entry);
@@ -247,7 +248,7 @@ pub async fn move_out_works(target_root_dir: &Path) -> Result<(), DomainError> {
             continue;
         }
 
-        let mut work_read_dir = tokio::fs::read_dir(&root_dir_path).await?;
+        let mut work_read_dir = fs::read_dir(&root_dir_path).await?;
         while let Some(work_entry) = work_read_dir.next_entry().await? {
             let work_dir_path = work_entry.path();
 
@@ -268,7 +269,7 @@ pub async fn move_out_works(target_root_dir: &Path) -> Result<(), DomainError> {
         }
 
         if !is_dir_having_file(&root_dir_path).await {
-            let _ = tokio::fs::remove_dir(&root_dir_path).await;
+            let _ = fs::remove_dir(&root_dir_path).await;
         }
     }
 
@@ -298,7 +299,7 @@ pub async fn move_works_with_same_name(
     }
 
     let mut from_subdirs: Vec<(String, std::path::PathBuf)> = Vec::new();
-    if let Ok(mut read_dir) = tokio::fs::read_dir(root_dir_from).await {
+    if let Ok(mut read_dir) = fs::read_dir(root_dir_from).await {
         while let Some(entry) = read_dir.next_entry().await? {
             if !entry.path().is_dir() {
                 continue;
@@ -311,7 +312,7 @@ pub async fn move_works_with_same_name(
     }
 
     let mut to_subdirs: Vec<String> = Vec::new();
-    if let Ok(mut read_dir) = tokio::fs::read_dir(root_dir_to).await {
+    if let Ok(mut read_dir) = fs::read_dir(root_dir_to).await {
         while let Some(entry) = read_dir.next_entry().await? {
             if !entry.path().is_dir() {
                 continue;
@@ -379,7 +380,7 @@ pub async fn move_works_with_same_name_to_siblings(
         .unwrap_or("");
 
     let mut from_subdirs: Vec<(String, std::path::PathBuf)> = Vec::new();
-    if let Ok(mut read_dir) = tokio::fs::read_dir(root_dir_from).await {
+    if let Ok(mut read_dir) = fs::read_dir(root_dir_from).await {
         while let Some(entry) = read_dir.next_entry().await? {
             if !entry.path().is_dir() {
                 continue;
@@ -393,7 +394,7 @@ pub async fn move_works_with_same_name_to_siblings(
 
     let mut pairs: Vec<(std::path::PathBuf, std::path::PathBuf)> = Vec::new();
 
-    if let Ok(mut siblings) = tokio::fs::read_dir(parent_dir).await {
+    if let Ok(mut siblings) = fs::read_dir(parent_dir).await {
         while let Some(sibling) = siblings.next_entry().await? {
             let sibling_path = sibling.path();
             if !sibling_path.is_dir() {
@@ -410,7 +411,7 @@ pub async fn move_works_with_same_name_to_siblings(
             }
 
             let mut to_subdirs: Vec<String> = Vec::new();
-            if let Ok(mut read_dir) = tokio::fs::read_dir(&sibling_path).await {
+            if let Ok(mut read_dir) = fs::read_dir(&sibling_path).await {
                 while let Some(entry) = read_dir.next_entry().await? {
                     if !entry.path().is_dir() {
                         continue;
@@ -462,7 +463,7 @@ pub async fn move_works_with_same_name_to_siblings(
 ///
 /// Returns [`anyhow::Error`] if directory operations fail.
 pub async fn merge_split_folders(root_dir: &Path) -> Result<(), DomainError> {
-    let mut read_dir = tokio::fs::read_dir(root_dir).await?;
+    let mut read_dir = fs::read_dir(root_dir).await?;
     let mut entries = Vec::new();
     while let Some(entry) = read_dir.next_entry().await? {
         if entry.path().is_dir() {
@@ -561,11 +562,11 @@ mod tests {
     async fn test_split_by_first_char() {
         let parent = TempDir::new().unwrap();
         let root = parent.path().join("split_char");
-        std::fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&root).await.unwrap();
         let a_dir = root.join("AlphaSong");
         let b_dir = root.join("BetaSong");
-        std::fs::create_dir_all(&a_dir).unwrap();
-        std::fs::create_dir_all(&b_dir).unwrap();
+        fs::create_dir_all(&a_dir).await.unwrap();
+        fs::create_dir_all(&b_dir).await.unwrap();
 
         split_folders_with_first_char(&root).await.unwrap();
 
@@ -579,10 +580,12 @@ mod tests {
     async fn test_undo_split_pack() {
         let parent = TempDir::new().unwrap();
         let root = parent.path().join("undo_split");
-        std::fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&root).await.unwrap();
         let group_dir = parent.path().join("undo_split [ABCD]");
-        std::fs::create_dir_all(&group_dir).unwrap();
-        std::fs::write(group_dir.join("SongName.bms"), "#TITLE Song\n").unwrap();
+        fs::create_dir_all(&group_dir).await.unwrap();
+        fs::write(group_dir.join("SongName.bms"), "#TITLE Song\n")
+            .await
+            .unwrap();
 
         undo_split_pack(&root).await.unwrap();
 
@@ -596,8 +599,10 @@ mod tests {
     async fn test_move_works_in_pack() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        std::fs::create_dir_all(src.path().join("Song1")).unwrap();
-        std::fs::write(src.path().join("Song1/test.bms"), "#TITLE Song1\n").unwrap();
+        fs::create_dir_all(src.path().join("Song1")).await.unwrap();
+        fs::write(src.path().join("Song1/test.bms"), "#TITLE Song1\n")
+            .await
+            .unwrap();
 
         move_works_in_pack(src.path(), dst.path()).await.unwrap();
 
@@ -609,8 +614,10 @@ mod tests {
         let root = TempDir::new().unwrap();
         let sub = root.path().join("SubPack");
         let work = sub.join("Work1");
-        std::fs::create_dir_all(&work).unwrap();
-        std::fs::write(work.join("test.bms"), "#TITLE Work1\n").unwrap();
+        fs::create_dir_all(&work).await.unwrap();
+        fs::write(work.join("test.bms"), "#TITLE Work1\n")
+            .await
+            .unwrap();
 
         move_out_works(root.path()).await.unwrap();
 
@@ -624,10 +631,16 @@ mod tests {
     async fn test_move_works_with_same_name() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        std::fs::create_dir_all(src.path().join("Song1")).unwrap();
-        std::fs::write(src.path().join("Song1/test.bms"), "#TITLE Song1\n").unwrap();
-        std::fs::create_dir_all(dst.path().join("Song1 [Artist]")).unwrap();
-        std::fs::write(dst.path().join("Song1 [Artist]/readme.txt"), "info").unwrap();
+        fs::create_dir_all(src.path().join("Song1")).await.unwrap();
+        fs::write(src.path().join("Song1/test.bms"), "#TITLE Song1\n")
+            .await
+            .unwrap();
+        fs::create_dir_all(dst.path().join("Song1 [Artist]"))
+            .await
+            .unwrap();
+        fs::write(dst.path().join("Song1 [Artist]/readme.txt"), "info")
+            .await
+            .unwrap();
 
         move_works_with_same_name(src.path(), dst.path())
             .await
@@ -643,12 +656,16 @@ mod tests {
     async fn test_move_works_with_same_name_to_siblings() {
         let parent = TempDir::new().unwrap();
         let src = parent.path().join("SourcePack");
-        std::fs::create_dir_all(&src).unwrap();
+        fs::create_dir_all(&src).await.unwrap();
         let sibling = parent.path().join("SiblingPack");
-        std::fs::create_dir_all(&sibling).unwrap();
-        std::fs::create_dir_all(src.join("Song1")).unwrap();
-        std::fs::write(src.join("Song1/test.bms"), "#TITLE Song1\n").unwrap();
-        std::fs::create_dir_all(sibling.join("Song1 [Artist]")).unwrap();
+        fs::create_dir_all(&sibling).await.unwrap();
+        fs::create_dir_all(src.join("Song1")).await.unwrap();
+        fs::write(src.join("Song1/test.bms"), "#TITLE Song1\n")
+            .await
+            .unwrap();
+        fs::create_dir_all(sibling.join("Song1 [Artist]"))
+            .await
+            .unwrap();
 
         move_works_with_same_name_to_siblings(&src).await.unwrap();
 
@@ -663,10 +680,14 @@ mod tests {
         let root = TempDir::new().unwrap();
         let cat_dir = root.path().join("Song [Artist]");
         let base_dir = root.path().join("Song");
-        std::fs::create_dir_all(&cat_dir).unwrap();
-        std::fs::write(cat_dir.join("song.bms"), "#TITLE Song\n").unwrap();
-        std::fs::create_dir_all(&base_dir).unwrap();
-        std::fs::write(base_dir.join("readme.txt"), "info").unwrap();
+        fs::create_dir_all(&cat_dir).await.unwrap();
+        fs::write(cat_dir.join("song.bms"), "#TITLE Song\n")
+            .await
+            .unwrap();
+        fs::create_dir_all(&base_dir).await.unwrap();
+        fs::write(base_dir.join("readme.txt"), "info")
+            .await
+            .unwrap();
 
         merge_split_folders(root.path()).await.unwrap();
 

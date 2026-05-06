@@ -1,6 +1,7 @@
 use sha2::{Digest, Sha512};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
+use tokio::fs;
 use tokio::sync::Semaphore;
 
 /// Execution mode for a soft sync operation.
@@ -75,7 +76,7 @@ impl Default for SoftSyncPreset {
 }
 
 async fn read_dir_entries(dir: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
-    let mut entries = tokio::fs::read_dir(dir).await?;
+    let mut entries = fs::read_dir(dir).await?;
     let mut list = Vec::new();
     while let Ok(Some(entry)) = entries.next_entry().await {
         list.push(entry.path());
@@ -104,7 +105,7 @@ pub async fn get_file_sha512(file_path: &Path) -> String {
     if !file_path.is_file() {
         return String::new();
     }
-    match tokio::fs::read(file_path).await {
+    match fs::read(file_path).await {
         Ok(bytes) => {
             let mut hasher = Sha512::new();
             hasher.update(&bytes);
@@ -112,6 +113,7 @@ pub async fn get_file_sha512(file_path: &Path) -> String {
             let mut hex_string = String::with_capacity(result.len() * 2);
             for byte in result {
                 use std::fmt::Write;
+
                 let _ = write!(hex_string, "{byte:02x}");
             }
             hex_string
@@ -121,11 +123,11 @@ pub async fn get_file_sha512(file_path: &Path) -> String {
 }
 
 async fn sync_move_file(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
-    if tokio::fs::rename(src, dst).await.is_ok() {
+    if fs::rename(src, dst).await.is_ok() {
         return Ok(());
     }
-    tokio::fs::copy(src, dst).await?;
-    tokio::fs::remove_file(src).await
+    fs::copy(src, dst).await?;
+    fs::remove_file(src).await
 }
 
 /// Preset for "append" mode sync: checks size and SHA-512, skips mtime,
@@ -199,26 +201,23 @@ async fn process_src_file(
                 format!(".{ext_bound_to}")
             };
             let bound_path = dst_path.with_extension(normalized.trim_start_matches('.'));
-            if tokio::fs::metadata(&bound_path)
-                .await
-                .is_ok_and(|m| m.is_file())
-            {
+            if fs::metadata(&bound_path).await.is_ok_and(|m| m.is_file()) {
                 return Ok((Vec::new(), Vec::new(), Vec::new()));
             }
         }
     }
 
-    let dst_metadata = tokio::fs::metadata(&dst_path).await;
+    let dst_metadata = fs::metadata(&dst_path).await;
     let dst_file_exists = dst_metadata.as_ref().is_ok_and(std::fs::Metadata::is_file);
     let mut is_same_file = dst_file_exists;
 
     if preset.check_file_size && is_same_file && dst_file_exists {
-        let src_size = tokio::fs::metadata(&src_path).await?.len();
+        let src_size = fs::metadata(&src_path).await?.len();
         let dst_size = dst_metadata.as_ref().unwrap().len();
         is_same_file = src_size == dst_size;
     }
     if preset.check_file_mtime && is_same_file && dst_file_exists {
-        let src_mtime = tokio::fs::metadata(&src_path).await?.modified()?;
+        let src_mtime = fs::metadata(&src_path).await?.modified()?;
         let dst_mtime = dst_metadata.as_ref().unwrap().modified()?;
         is_same_file = src_mtime == dst_mtime;
     }
@@ -231,12 +230,12 @@ async fn process_src_file(
     let mut remove_files = Vec::new();
 
     if !dst_file_exists || !is_same_file {
-        let src_mtime = tokio::fs::metadata(&src_path).await?.modified();
+        let src_mtime = fs::metadata(&src_path).await?.modified();
         match preset.exec {
             SoftSyncExec::None => {}
             SoftSyncExec::Copy => {
                 copy_files.push(src_path.clone());
-                tokio::fs::copy(&src_path, &dst_path).await?;
+                fs::copy(&src_path, &dst_path).await?;
                 if let Ok(mtime) = src_mtime {
                     let _ = filetime::set_file_mtime(
                         &dst_path,
@@ -260,12 +259,10 @@ async fn process_src_file(
     if preset.remove_src_same_files
         && dst_file_exists
         && is_same_file
-        && tokio::fs::metadata(&src_path)
-            .await
-            .is_ok_and(|m| m.is_file())
+        && fs::metadata(&src_path).await.is_ok_and(|m| m.is_file())
     {
         remove_files.push(src_path.clone());
-        let _ = tokio::fs::remove_file(&src_path).await;
+        let _ = fs::remove_file(&src_path).await;
     }
 
     Ok((copy_files, move_files, remove_files))
@@ -343,7 +340,7 @@ pub async fn sync_folder(
         if src_path.is_dir() {
             let dst_path = dst_dir.join(src_path.file_name().unwrap_or_default());
             if !dst_path.is_dir() {
-                tokio::fs::create_dir(&dst_path).await?;
+                fs::create_dir(&dst_path).await?;
             }
             Box::pin(sync_folder(src_path, &dst_path, preset, max_concurrent)).await?;
         }
@@ -356,11 +353,11 @@ pub async fn sync_folder(
             if dst_path.is_dir() {
                 if !src_path.is_dir() {
                     dst_remove_dirs.push(dst_path.clone());
-                    let _ = tokio::fs::remove_dir_all(dst_path).await;
+                    let _ = fs::remove_dir_all(dst_path).await;
                 }
             } else if dst_path.is_file() && !src_path.is_file() {
                 dst_remove_files.push(dst_path.clone());
-                let _ = tokio::fs::remove_file(dst_path).await;
+                let _ = fs::remove_file(dst_path).await;
             }
         }
     }
@@ -400,7 +397,7 @@ mod tests {
         let src_dir = TempDir::new().unwrap();
         let dst_dir = TempDir::new().unwrap();
 
-        tokio::fs::write(src_dir.path().join("test.txt"), "content")
+        fs::write(src_dir.path().join("test.txt"), "content")
             .await
             .unwrap();
 
@@ -413,7 +410,7 @@ mod tests {
     async fn test_sync_new_file_copied() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        tokio::fs::write(src.path().join("f.txt"), "content")
+        fs::write(src.path().join("f.txt"), "content")
             .await
             .unwrap();
         sync_folder(src.path(), dst.path(), &SoftSyncPreset::default(), 8)
@@ -426,12 +423,8 @@ mod tests {
     async fn test_sync_identical_skipped() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        tokio::fs::write(src.path().join("f.txt"), "same")
-            .await
-            .unwrap();
-        tokio::fs::write(dst.path().join("f.txt"), "same")
-            .await
-            .unwrap();
+        fs::write(src.path().join("f.txt"), "same").await.unwrap();
+        fs::write(dst.path().join("f.txt"), "same").await.unwrap();
         let preset = SoftSyncPreset {
             check_file_sha512: true,
             check_file_mtime: false,
@@ -442,9 +435,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            tokio::fs::read_to_string(dst.path().join("f.txt"))
-                .await
-                .unwrap(),
+            fs::read_to_string(dst.path().join("f.txt")).await.unwrap(),
             "same"
         );
     }
@@ -453,9 +444,7 @@ mod tests {
     async fn test_sync_append_dry_run() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        tokio::fs::write(src.path().join("f.txt"), "data")
-            .await
-            .unwrap();
+        fs::write(src.path().join("f.txt"), "data").await.unwrap();
         sync_folder(src.path(), dst.path(), &SYNC_PRESET_FOR_APPEND, 8)
             .await
             .unwrap();
@@ -466,12 +455,8 @@ mod tests {
     async fn test_sync_append_removes_src_same() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        tokio::fs::write(src.path().join("f.txt"), "same")
-            .await
-            .unwrap();
-        tokio::fs::write(dst.path().join("f.txt"), "same")
-            .await
-            .unwrap();
+        fs::write(src.path().join("f.txt"), "same").await.unwrap();
+        fs::write(dst.path().join("f.txt"), "same").await.unwrap();
         sync_folder(src.path(), dst.path(), &SYNC_PRESET_FOR_APPEND, 8)
             .await
             .unwrap();
@@ -482,12 +467,8 @@ mod tests {
     async fn test_sync_ext_filtering() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        tokio::fs::write(src.path().join("a.flac"), "data")
-            .await
-            .unwrap();
-        tokio::fs::write(src.path().join("b.txt"), "data")
-            .await
-            .unwrap();
+        fs::write(src.path().join("a.flac"), "data").await.unwrap();
+        fs::write(src.path().join("b.txt"), "data").await.unwrap();
         let preset = SoftSyncPreset {
             allow_src_exts: vec!["flac".into()],
             allow_other_exts: false,
@@ -505,15 +486,9 @@ mod tests {
     async fn test_sync_remove_dst_extra() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        tokio::fs::write(src.path().join("k.txt"), "x")
-            .await
-            .unwrap();
-        tokio::fs::write(dst.path().join("k.txt"), "x")
-            .await
-            .unwrap();
-        tokio::fs::write(dst.path().join("e.txt"), "x")
-            .await
-            .unwrap();
+        fs::write(src.path().join("k.txt"), "x").await.unwrap();
+        fs::write(dst.path().join("k.txt"), "x").await.unwrap();
+        fs::write(dst.path().join("e.txt"), "x").await.unwrap();
         let preset = SoftSyncPreset {
             remove_dst_extra_files: true,
             exec: SoftSyncExec::Copy,
@@ -529,9 +504,7 @@ mod tests {
     async fn test_sync_exec_move() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        tokio::fs::write(src.path().join("f.txt"), "data")
-            .await
-            .unwrap();
+        fs::write(src.path().join("f.txt"), "data").await.unwrap();
         let preset = SoftSyncPreset {
             exec: SoftSyncExec::Move,
             ..Default::default()
@@ -547,12 +520,8 @@ mod tests {
     async fn test_sync_preset_flac() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        tokio::fs::write(src.path().join("a.flac"), "data")
-            .await
-            .unwrap();
-        tokio::fs::write(src.path().join("b.txt"), "data")
-            .await
-            .unwrap();
+        fs::write(src.path().join("a.flac"), "data").await.unwrap();
+        fs::write(src.path().join("b.txt"), "data").await.unwrap();
         sync_folder(src.path(), dst.path(), &SYNC_PRESET_FLAC, 8)
             .await
             .unwrap();
@@ -564,15 +533,9 @@ mod tests {
     async fn test_sync_preset_mp4_avi() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        tokio::fs::write(src.path().join("v.mp4"), "data")
-            .await
-            .unwrap();
-        tokio::fs::write(src.path().join("v.avi"), "data")
-            .await
-            .unwrap();
-        tokio::fs::write(src.path().join("n.txt"), "data")
-            .await
-            .unwrap();
+        fs::write(src.path().join("v.mp4"), "data").await.unwrap();
+        fs::write(src.path().join("v.avi"), "data").await.unwrap();
+        fs::write(src.path().join("n.txt"), "data").await.unwrap();
         sync_folder(src.path(), dst.path(), &SYNC_PRESET_MP4_AVI, 8)
             .await
             .unwrap();
@@ -585,9 +548,7 @@ mod tests {
     async fn test_sync_preset_cache() {
         let src = TempDir::new().unwrap();
         let dst = TempDir::new().unwrap();
-        tokio::fs::write(src.path().join("a.flac"), "data")
-            .await
-            .unwrap();
+        fs::write(src.path().join("a.flac"), "data").await.unwrap();
         sync_folder(src.path(), dst.path(), &SYNC_PRESET_CACHE, 8)
             .await
             .unwrap();
