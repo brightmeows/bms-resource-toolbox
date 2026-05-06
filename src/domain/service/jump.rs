@@ -1,8 +1,4 @@
-//! BMS event utilities.
-//!
-//! This module provides utilities for BMS events like BOFTT.
-
-use webbrowser;
+use crate::domain::port::BrowserPort;
 
 /// BMS event types for work information pages.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,26 +41,7 @@ impl BMSEvent {
             }
         }
     }
-}
 
-/// Jump to work info page for a BMS event.
-///
-/// Opens URLs for the specified event and work IDs.
-/// If `work_ids` is empty, opens the event list page.
-pub fn jump_to_work_info(event: BMSEvent, work_ids: &[i32]) {
-    if work_ids.is_empty() {
-        println!("Open BMS List.");
-        open_url(event.list_url());
-        return;
-    }
-
-    for &id in work_ids {
-        println!("Open no.{id}");
-        open_url(&event.work_info_url(id));
-    }
-}
-
-impl BMSEvent {
     /// Parse an i32 into a `BMSEvent`, defaulting to BOFTT.
     #[must_use]
     pub fn from_i32(val: i32) -> Self {
@@ -72,10 +49,30 @@ impl BMSEvent {
     }
 }
 
-/// Open URL in browser.
-pub fn open_url(url: &str) {
-    // Intentionally ignored: browser open may fail in headless environments
-    let _ = webbrowser::open(url);
+/// Service for opening BMS chart URLs in the system browser.
+pub struct JumpService {
+    browser: Box<dyn BrowserPort>,
+}
+
+impl JumpService {
+    /// Create a new `JumpService` with the given browser port.
+    #[must_use]
+    pub fn new(browser: Box<dyn BrowserPort>) -> Self {
+        Self { browser }
+    }
+
+    /// Jump to work info pages for the given event and work IDs.
+    /// Opens the event list page if `work_ids` is empty.
+    pub fn jump_to_work_info(&self, event: BMSEvent, work_ids: &[i32]) {
+        if work_ids.is_empty() {
+            self.browser.open(event.list_url());
+            return;
+        }
+
+        for &id in work_ids {
+            self.browser.open(&event.work_info_url(id));
+        }
+    }
 }
 
 #[cfg(test)]

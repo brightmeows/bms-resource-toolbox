@@ -1,9 +1,10 @@
 //! Async tests for `bms::encoding` and `bms::parse` modules.
 
-use bms_resource_toolbox::domain::bms::dir::get_dir_bms_info;
 use bms_resource_toolbox::domain::bms::encoding::get_bms_file_str;
+use bms_resource_toolbox::domain::bms::info::get_dir_bms_info;
 use bms_resource_toolbox::domain::bms::parse::parse_bms_content;
 use bms_resource_toolbox::domain::bms::types::BMSDifficulty;
+use bms_resource_toolbox::infra::adapters::fs::TokioFsAdapter;
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -102,7 +103,8 @@ async fn test_get_dir_bms_info_basic() {
     )
     .await
     .unwrap();
-    let info = get_dir_bms_info(dir.path()).await.unwrap();
+    let fs = TokioFsAdapter;
+    let info = get_dir_bms_info(&fs, dir.path()).await.unwrap();
     assert_eq!(info.title, "Title");
     assert_eq!(info.artist, "Artist");
     assert_eq!(info.genre, "Genre");
@@ -111,7 +113,8 @@ async fn test_get_dir_bms_info_basic() {
 #[tokio::test]
 async fn test_get_dir_bms_info_none() {
     let dir = TempDir::new().unwrap();
-    assert!(get_dir_bms_info(dir.path()).await.is_none());
+    let fs = TokioFsAdapter;
+    assert!(get_dir_bms_info(&fs, dir.path()).await.is_none());
 }
 
 #[tokio::test]
@@ -129,7 +132,8 @@ async fn test_get_dir_bms_info_multiple() {
     )
     .await
     .unwrap();
-    let info = get_dir_bms_info(dir.path()).await.unwrap();
+    let fs = TokioFsAdapter;
+    let info = get_dir_bms_info(&fs, dir.path()).await.unwrap();
     assert_eq!(info.title, "Song");
     assert_eq!(info.artist, "Common");
 }
