@@ -5,10 +5,11 @@ use tokio::fs;
 
 use crate::domain::bms::dir::get_dir_bms_info;
 use crate::domain::error::DomainError;
-use crate::infra::fs::name::{bms_dir_similarity, get_valid_fs_name};
-use crate::infra::fs::pack_move::{
+use crate::domain::folder::pack_move::{
     MoveOptions, REPLACE_OPTION_UPDATE_PACK, ReplaceOptions, move_elements_across_dir,
 };
+use crate::domain::folder::similarity::bms_dir_similarity;
+use crate::infra::fs::name::get_valid_fs_name;
 
 /// Append title and artist info to folder names based on BMS files.
 ///

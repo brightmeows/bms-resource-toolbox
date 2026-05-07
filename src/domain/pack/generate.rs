@@ -10,8 +10,8 @@ use crate::domain::error::DomainError;
 use crate::domain::folder::cleanup::copy_numbered_workdir_names;
 use crate::domain::folder::media::{get_remove_media_rule_oraja, remove_unneed_media_files};
 use crate::domain::folder::rename::append_name_by_bms;
+use crate::domain::sync::{SYNC_PRESET_FOR_APPEND, sync_folder};
 use crate::infra::fs::pack_move::is_dir_having_file;
-use crate::infra::fs::sync::{SYNC_PRESET_FOR_APPEND, sync_folder};
 use crate::infra::fs::walk::remove_empty_dirs;
 use crate::infra::media::video::{
     VIDEO_PRESET_AVI_512X512, VIDEO_PRESET_MPEG1VIDEO_512X512, VIDEO_PRESET_WMV2_512X512,

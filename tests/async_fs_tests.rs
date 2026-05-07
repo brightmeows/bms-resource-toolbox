@@ -1,11 +1,11 @@
 //! Async tests for `fs::walk` module.
 
-use bms_resource_toolbox::infra::fs::name::bms_dir_similarity;
-use bms_resource_toolbox::infra::fs::pack_move::DEFAULT_MOVE_OPTIONS;
-use bms_resource_toolbox::infra::fs::pack_move::REPLACE_OPTION_UPDATE_PACK;
-use bms_resource_toolbox::infra::fs::pack_move::ReplaceAction;
-use bms_resource_toolbox::infra::fs::pack_move::ReplaceOptions;
-use bms_resource_toolbox::infra::fs::pack_move::move_elements_across_dir;
+use bms_resource_toolbox::domain::folder::pack_move::DEFAULT_MOVE_OPTIONS;
+use bms_resource_toolbox::domain::folder::pack_move::REPLACE_OPTION_UPDATE_PACK;
+use bms_resource_toolbox::domain::folder::pack_move::ReplaceAction;
+use bms_resource_toolbox::domain::folder::pack_move::ReplaceOptions;
+use bms_resource_toolbox::domain::folder::pack_move::move_elements_across_dir;
+use bms_resource_toolbox::domain::folder::similarity::bms_dir_similarity;
 use bms_resource_toolbox::infra::fs::walk::remove_empty_dirs;
 use std::collections::HashMap;
 use tempfile::TempDir;

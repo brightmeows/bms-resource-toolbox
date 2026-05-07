@@ -5,10 +5,8 @@ use tokio::fs;
 
 use crate::domain::bms::types::CHART_FILE_EXTS;
 use crate::domain::error::DomainError;
+use crate::domain::pack::flatten::{get_num_set_file_names, move_out_files_in_folder_in_cache_dir};
 use crate::infra::archive::extract::extract_archive;
-use crate::infra::archive::flatten::{
-    get_num_set_file_names, move_out_files_in_folder_in_cache_dir,
-};
 use crate::infra::fs::pack_move::is_dir_having_file;
 
 /// Extract numeric-prefixed archives to BMS folder structure.

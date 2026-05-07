@@ -5,8 +5,8 @@ use tokio::fs;
 
 use crate::domain::bms::types::CHART_FILE_EXTS;
 use crate::domain::error::DomainError;
+use crate::domain::pack::flatten::move_out_files_in_folder_in_cache_dir;
 use crate::infra::archive::extract::extract_archive;
-use crate::infra::archive::flatten::move_out_files_in_folder_in_cache_dir;
 use crate::infra::fs::utils::copy_dir_recursive;
 
 /// Extract archives by original filename to BMS folder structure.

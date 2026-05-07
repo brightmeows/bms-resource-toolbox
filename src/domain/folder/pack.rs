@@ -9,10 +9,10 @@ use std::sync::LazyLock;
 use tokio::fs;
 
 use crate::domain::error::DomainError;
-use crate::infra::fs::pack_move::{
-    MoveOptions, REPLACE_OPTION_UPDATE_PACK, ReplaceOptions, is_dir_having_file,
-    move_elements_across_dir,
+use crate::domain::folder::pack_move::{
+    MoveOptions, REPLACE_OPTION_UPDATE_PACK, ReplaceOptions, move_elements_across_dir,
 };
+use crate::infra::fs::pack_move::is_dir_having_file;
 
 /// Regular expression for Japanese Hiragana
 const RE_JAPANESE_HIRAGANA: &str = r"[぀-ゟ]+";
