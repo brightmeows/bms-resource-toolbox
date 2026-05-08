@@ -35,7 +35,7 @@ name = "async_performance"
 harness = false
 
 [[bin]]
-name = "bmsrestb"
+name = "bms-res-tb"
 path = "src/bin/bmsrestb.rs"
 
 [profile.release]

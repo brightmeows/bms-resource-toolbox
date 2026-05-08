@@ -5,7 +5,7 @@
 [![Cargo Deny](https://github.com/MiyakoMeow/bms-resource-toolbox/actions/workflows/cargo-deny.yml/badge.svg)](https://github.com/MiyakoMeow/bms-resource-toolbox/actions/workflows/cargo-deny.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-BMS（Beatmania）谱面资源管理工具箱。Rust 实现，提供 CLI 接口 `bmsrestb`。
+BMS（Beatmania）谱面资源管理工具箱。Rust 实现，提供 CLI 接口 `bms-res-tb`。
 
 ## 功能
 
@@ -80,7 +80,7 @@ BMS（Beatmania）谱面资源管理工具箱。Rust 实现，提供 CLI 接口 
 git clone https://github.com/MiyakoMeow/bms-resource-toolbox
 cd bms-resource-toolbox
 cargo build --release
-./target/release/bmsrestb --help
+./target/release/bms-res-tb --help
 ```
 
 或直接安装：
@@ -93,16 +93,16 @@ cargo install --git https://github.com/MiyakoMeow/bms-resource-toolbox
 
 ```bash
 # 查看帮助
-bmsrestb --help
+bms-res-tb --help
 
 # 按 BMS 信息重命名文件夹
-bmsrestb set-name-by-bms -p /path/to/bms/root
+bms-res-tb set-name-by-bms -p /path/to/bms/root
 
 # 音频转换（WAV → FLAC）
-bmsrestb transfer-audio -p /path/to/bms/root -m 0
+bms-res-tb transfer-audio -p /path/to/bms/root -m 0
 
 # 生成 HQ 版大包
-bmsrestb pack-raw-to-hq -p /path/to/root
+bms-res-tb pack-raw-to-hq -p /path/to/root
 ```
 
 ## 相关项目
