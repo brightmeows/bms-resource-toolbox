@@ -6,5 +6,7 @@ use clap::Parser;
 #[tokio::main]
 async fn main() {
     let cli = cli::Cli::parse();
-    cli::dispatch(&cli.command);
+    if let Err(e) = cli::dispatch(&cli.command).await {
+        eprintln!("{e:#}");
+    }
 }

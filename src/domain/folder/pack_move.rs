@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use tokio::fs;
 
-use crate::infra::fs::pack_move::is_same_content;
+use crate::infra::fs::pack_move::{is_dir_having_file, is_same_content};
 use crate::infra::fs::utils::copy_dir_recursive;
 
 /// Options for moving or merging files between directories.
@@ -268,30 +268,6 @@ async fn set_mtime_recursive(src: &Path, dst: &Path) -> Result<(), std::io::Erro
         }
     }
     Ok(())
-}
-
-/// Check whether a directory contains any non-empty file (recursive).
-///
-/// Returns `true` if any file with size > 0 is found in the directory tree.
-#[must_use]
-pub async fn is_dir_having_file(dir: &Path) -> bool {
-    let Ok(mut entries) = fs::read_dir(dir).await else {
-        return false;
-    };
-    while let Ok(Some(entry)) = entries.next_entry().await {
-        let path = entry.path();
-        if path.is_dir() {
-            if Box::pin(is_dir_having_file(&path)).await {
-                return true;
-            }
-        } else if path.is_file()
-            && let Ok(metadata) = fs::metadata(&path).await
-            && metadata.len() > 0
-        {
-            return true;
-        }
-    }
-    false
 }
 
 #[cfg(test)]

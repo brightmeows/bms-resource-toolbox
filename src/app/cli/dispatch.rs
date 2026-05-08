@@ -1,137 +1,102 @@
 //! CLI command dispatch.
 
-use std::future::Future;
-
 use super::Commands;
 use crate::domain::error::DomainError;
 use crate::domain::event::jump::BMSEvent;
 use crate::domain::transfer::{AudioMode, VideoFormat};
 
-fn run_async(fut: impl Future<Output = Result<(), DomainError>>) {
-    if let Err(e) = tokio::runtime::Handle::current().block_on(fut) {
-        eprintln!("{e:#}");
-    }
-}
-
 /// Dispatch a CLI command to the appropriate domain function.
-#[expect(clippy::too_many_lines)]
-pub fn dispatch(cmd: &Commands) {
+///
+/// # Errors
+///
+/// Returns [`DomainError`] if the underlying domain operation fails.
+pub async fn dispatch(cmd: &Commands) -> Result<(), DomainError> {
     match cmd {
         Commands::JumpToWorkInfo { event, work_id } => {
             let event = BMSEvent::from_i32(*event);
             crate::domain::event::jump::jump_to_work_info(event, work_id);
+            Ok(())
         }
         Commands::SetNameByBms { path } => {
-            run_async(crate::domain::folder::rename::set_name_by_bms(path));
+            crate::domain::folder::rename::set_name_by_bms(path).await
         }
         Commands::AppendNameByBms { path } => {
-            run_async(crate::domain::folder::rename::append_name_by_bms(path));
+            crate::domain::folder::rename::append_name_by_bms(path).await
         }
         Commands::AppendArtistNameByBms { path } => {
-            run_async(crate::domain::folder::rename::append_artist_name_by_bms(
-                path,
-            ));
+            crate::domain::folder::rename::append_artist_name_by_bms(path).await
         }
         Commands::CopyNumberedWorkdirNames { from, to } => {
-            run_async(crate::domain::folder::cleanup::copy_numbered_workdir_names(
-                from, to,
-            ));
+            crate::domain::folder::cleanup::copy_numbered_workdir_names(from, to).await
         }
         Commands::ScanFolderSimilarFolders { path } => {
-            run_async(crate::domain::folder::scan::scan_folder_similar_folders(
-                path, 0.7,
-            ));
+            crate::domain::folder::scan::scan_folder_similar_folders(path, 0.7).await
         }
-        Commands::UndoSetName { path } => {
-            run_async(crate::domain::folder::rename::undo_set_name(path));
-        }
+        Commands::UndoSetName { path } => crate::domain::folder::rename::undo_set_name(path).await,
         Commands::RemoveZeroSizedMediaFiles { path } => {
-            run_async(crate::domain::folder::cleanup::remove_zero_sized_media_files(path, false));
+            crate::domain::folder::cleanup::remove_zero_sized_media_files(path, false).await
         }
         Commands::SplitFoldersWithFirstChar { path } => {
-            run_async(crate::domain::folder::pack::split_folders_with_first_char(
-                path,
-            ));
+            crate::domain::folder::pack::split_folders_with_first_char(path).await
         }
         Commands::UndoSplitPack { path } => {
-            run_async(crate::domain::folder::pack::undo_split_pack(path));
+            crate::domain::folder::pack::undo_split_pack(path).await
         }
         Commands::MoveWorksInPack { from, to } => {
-            run_async(crate::domain::folder::pack::move_works_in_pack(from, to));
+            crate::domain::folder::pack::move_works_in_pack(from, to).await
         }
-        Commands::MoveOutWorks { path } => {
-            run_async(crate::domain::folder::pack::move_out_works(path));
-        }
+        Commands::MoveOutWorks { path } => crate::domain::folder::pack::move_out_works(path).await,
         Commands::MoveWorksWithSameName { from, to } => {
-            run_async(crate::domain::folder::pack::move_works_with_same_name(
-                from, to,
-            ));
+            crate::domain::folder::pack::move_works_with_same_name(from, to).await
         }
         Commands::MoveWorksWithSameNameToSiblings { path } => {
-            run_async(crate::domain::folder::pack::move_works_with_same_name_to_siblings(path));
+            crate::domain::folder::pack::move_works_with_same_name_to_siblings(path).await
         }
         Commands::MergeSplitFolders { path } => {
-            run_async(crate::domain::folder::pack::merge_split_folders(path));
+            crate::domain::folder::pack::merge_split_folders(path).await
         }
         Commands::CheckNumFolder { path, count } => {
             crate::domain::event::folder::check_num_folder(path, *count);
+            Ok(())
         }
         Commands::CreateNumFolders { path, count } => {
-            run_async(crate::domain::event::folder::create_num_folders(
-                path, *count,
-            ));
+            crate::domain::event::folder::create_num_folders(path, *count).await
         }
         Commands::GenerateWorkInfoTable { path } => {
-            run_async(crate::domain::event::folder::generate_work_info_table(path));
+            crate::domain::event::folder::generate_work_info_table(path).await
         }
         Commands::TransferAudio { path, mode } => {
             let mode = AudioMode::all()
                 .get(*mode)
                 .copied()
                 .unwrap_or(AudioMode::WavToFlac);
-            run_async(crate::domain::transfer::transfer_audio(path, mode));
+            crate::domain::transfer::transfer_audio(path, mode).await
         }
         Commands::TransferVideo { path, format } => {
             let format = VideoFormat::all()
                 .get(*format)
                 .copied()
                 .unwrap_or(VideoFormat::Avi);
-            run_async(crate::domain::transfer::transfer_video(path, format));
+            crate::domain::transfer::transfer_video(path, format).await
         }
         Commands::UnzipNumericToBmsFolder { pack, cache, root } => {
-            run_async(
-                crate::domain::pack::unzip_numeric::unzip_numeric_to_bms_folder(pack, cache, root),
-            );
+            crate::domain::pack::unzip_numeric::unzip_numeric_to_bms_folder(pack, cache, root).await
         }
         Commands::UnzipWithNameToBmsFolder { pack, cache, root } => {
-            run_async(
-                crate::domain::pack::unzip_name::unzip_with_name_to_bms_folder(pack, cache, root),
-            );
+            crate::domain::pack::unzip_name::unzip_with_name_to_bms_folder(pack, cache, root).await
         }
         Commands::SetFileNum {
             path,
             file_idx,
             num,
-        } => {
-            run_async(crate::domain::pack::unzip_numeric::set_file_num(
-                path, *file_idx, *num,
-            ));
-        }
+        } => crate::domain::pack::unzip_numeric::set_file_num(path, *file_idx, *num).await,
         Commands::PackSetupRawpackToHq { pack, root } => {
-            run_async(crate::domain::pack::generate::pack_setup_rawpack_to_hq(
-                pack, root,
-            ));
+            crate::domain::pack::generate::pack_setup_rawpack_to_hq(pack, root).await
         }
         Commands::PackUpdateRawpackToHq { pack, root, sync } => {
-            run_async(crate::domain::pack::generate::pack_update_rawpack_to_hq(
-                pack, root, sync,
-            ));
+            crate::domain::pack::generate::pack_update_rawpack_to_hq(pack, root, sync).await
         }
-        Commands::PackRawToHq { path } => {
-            run_async(crate::domain::pack::generate::pack_raw_to_hq(path));
-        }
-        Commands::PackHqToLq { path } => {
-            run_async(crate::domain::pack::generate::pack_hq_to_lq(path));
-        }
+        Commands::PackRawToHq { path } => crate::domain::pack::generate::pack_raw_to_hq(path).await,
+        Commands::PackHqToLq { path } => crate::domain::pack::generate::pack_hq_to_lq(path).await,
     }
 }
