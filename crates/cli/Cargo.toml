@@ -1,0 +1,21 @@
+[package]
+name = "bms_res_tb_cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bms_res_tb_domain = { path = "../domain" }
+clap.workspace = true
+dialoguer.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tokio.workspace = true
+
+[[bin]]
+name = "bms-res-tb"
+path = "src/main.rs"
+

@@ -1,0 +1,28 @@
+[package]
+name = "bms_res_tb_infra"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+tokio.workspace = true
+zip.workspace = true
+sevenz-rust.workspace = true
+anyhow.workspace = true
+encoding_rs.workspace = true
+chrono.workspace = true
+filetime.workspace = true
+tracing.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+tempfile.workspace = true
+
+[[bench]]
+name = "async_performance"
+harness = false
+

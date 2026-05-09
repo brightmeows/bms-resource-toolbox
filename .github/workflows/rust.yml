@@ -4,10 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'examples/**'
-      - 'build.rs'
+      - 'crates/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.cargo/**'
@@ -17,9 +14,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'examples/**'
+      - 'crates/**'
       - 'build.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
