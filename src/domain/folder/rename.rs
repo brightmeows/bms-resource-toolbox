@@ -11,6 +11,30 @@ use crate::domain::folder::pack_move::{
 use crate::domain::folder::similarity::bms_dir_similarity;
 use crate::infra::fs::name::get_valid_fs_name;
 
+/// Target component(s) for set-name operations.
+#[derive(Clone, Copy)]
+pub enum SetNameTarget {
+    /// Set to "title \[artist\]"
+    All,
+    /// Set to just the title
+    Title,
+    /// Set to just the artist
+    Artist,
+}
+
+/// Target component(s) for append operations.
+#[derive(Clone, Copy)]
+pub enum AppendTarget {
+    /// Append "title \[artist\]" to numeric folder names
+    All,
+    /// Append just the title
+    Title,
+    /// Append "\[artist\]" to folder name
+    Artist,
+}
+
+// ── append helpers ──────────────────────────────────────
+
 /// Append title and artist info to folder names based on BMS files.
 ///
 /// Iterates through subdirectories, renames folders that are purely numeric
@@ -20,12 +44,37 @@ use crate::infra::fs::name::get_valid_fs_name;
 ///
 /// Returns an error if directory operations fail.
 pub async fn append_name_by_bms(root_dir: &Path) -> Result<(), DomainError> {
+    append_by_target(root_dir, AppendTarget::All).await
+}
+
+/// Append title info to folder names based on BMS files.
+///
+/// Adds " \[title\]" suffix to folders.
+///
+/// # Errors
+///
+/// Returns an error if directory operations fail.
+pub async fn append_title_by_bms(root_dir: &Path) -> Result<(), DomainError> {
+    append_by_target(root_dir, AppendTarget::Title).await
+}
+
+/// Append artist name to folder names based on BMS files.
+///
+/// Adds " \[artist\]" suffix to folders not already ending with "\]".
+///
+/// # Errors
+///
+/// Returns an error if directory operations fail.
+pub async fn append_artist_name_by_bms(root_dir: &Path) -> Result<(), DomainError> {
+    append_by_target(root_dir, AppendTarget::Artist).await
+}
+
+async fn append_by_target(root_dir: &Path, target: AppendTarget) -> Result<(), DomainError> {
     if !root_dir.is_dir() {
         return Ok(());
     }
 
-    let mut to_rename: Vec<(PathBuf, PathBuf)> = Vec::new();
-
+    let mut pairs: Vec<(PathBuf, PathBuf)> = Vec::new();
     let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
         let dir_path = entry.path();
@@ -35,19 +84,57 @@ pub async fn append_name_by_bms(root_dir: &Path) -> Result<(), DomainError> {
 
         let dir_name = dir_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-        if !dir_name.trim().is_empty()
-            && dir_name
-                .chars()
-                .all(|c| c.is_ascii_digit() || ('\u{FF10}'..='\u{FF19}').contains(&c))
-            && let Some(new_name) = rename_folder_by_bms(&dir_path).await
-        {
-            let new_path = dir_path.with_file_name(&new_name);
-            to_rename.push((dir_path, new_path));
+        match target {
+            AppendTarget::All => {
+                if !dir_name.trim().is_empty()
+                    && dir_name
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || ('\u{FF10}'..='\u{FF19}').contains(&c))
+                    && let Some(new_name) = rename_folder_by_bms(&dir_path).await
+                {
+                    let new_path = dir_path.with_file_name(&new_name);
+                    pairs.push((dir_path, new_path));
+                }
+            }
+            AppendTarget::Artist => {
+                if dir_name.ends_with(']') {
+                    continue;
+                }
+
+                let info = get_dir_bms_info(&dir_path).await;
+                let Some(info) = info else {
+                    println!("Dir {} has no bms files!", dir_path.display());
+                    continue;
+                };
+
+                let new_dir_name = format!("{dir_name} [{}]", get_valid_fs_name(&info.artist));
+                println!("- Ready to rename: {dir_name} -> {new_dir_name}");
+                pairs.push((dir_path, root_dir.join(&new_dir_name)));
+            }
+            AppendTarget::Title => {
+                if dir_name.ends_with(']') {
+                    continue;
+                }
+
+                let info = get_dir_bms_info(&dir_path).await;
+                let Some(info) = info else {
+                    println!("Dir {} has no bms files!", dir_path.display());
+                    continue;
+                };
+
+                let new_dir_name = format!("{} {}", dir_name, get_valid_fs_name(&info.title));
+                println!("- Ready to rename: {dir_name} -> {new_dir_name}");
+                pairs.push((dir_path, root_dir.join(&new_dir_name)));
+            }
         }
     }
 
-    for (from, to) in to_rename {
-        println!("Renaming {:?} -> {:?}", from.file_name(), to.file_name());
+    if pairs.is_empty() {
+        println!("No folders to rename");
+        return Ok(());
+    }
+
+    for (from, to) in pairs {
         fs::rename(&from, &to).await?;
     }
 
@@ -84,55 +171,7 @@ async fn rename_folder_by_bms(work_dir: &Path) -> Option<String> {
     Some(new_dir_name)
 }
 
-/// Append artist name to folder names based on BMS files.
-///
-/// Adds " \[artist\]" suffix to folders not already ending with "\]".
-/// Performs renaming without prompting.
-///
-/// # Errors
-///
-/// Returns an error if directory operations fail.
-pub async fn append_artist_name_by_bms(root_dir: &Path) -> Result<(), DomainError> {
-    if !root_dir.is_dir() {
-        return Ok(());
-    }
-
-    let mut pairs: Vec<(PathBuf, PathBuf)> = Vec::new();
-    let mut read_dir = fs::read_dir(root_dir).await?;
-    while let Some(entry) = read_dir.next_entry().await? {
-        let dir_path = entry.path();
-        if !dir_path.is_dir() {
-            continue;
-        }
-
-        let dir_name = dir_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
-        if dir_name.ends_with(']') {
-            continue;
-        }
-
-        let info = get_dir_bms_info(&dir_path).await;
-        let Some(info) = info else {
-            println!("Dir {} has no bms files!", dir_path.display());
-            continue;
-        };
-
-        let new_dir_name = format!("{dir_name} [{}]", get_valid_fs_name(&info.artist));
-        println!("- Ready to rename: {dir_name} -> {new_dir_name}");
-        pairs.push((dir_path, root_dir.join(&new_dir_name)));
-    }
-
-    if pairs.is_empty() {
-        println!("No folders to rename");
-        return Ok(());
-    }
-
-    for (from, to) in pairs {
-        fs::rename(&from, &to).await?;
-    }
-
-    Ok(())
-}
+// ── set-name helpers ────────────────────────────────────
 
 /// Set folder names based on BMS info (title \[artist\] format).
 ///
@@ -143,6 +182,28 @@ pub async fn append_artist_name_by_bms(root_dir: &Path) -> Result<(), DomainErro
 ///
 /// Returns an error if directory operations fail.
 pub async fn set_name_by_bms(root_dir: &Path) -> Result<(), DomainError> {
+    set_name_by_target(root_dir, SetNameTarget::All).await
+}
+
+/// Set folder names to just the BMS title.
+///
+/// # Errors
+///
+/// Returns an error if directory operations fail.
+pub async fn set_title_by_bms(root_dir: &Path) -> Result<(), DomainError> {
+    set_name_by_target(root_dir, SetNameTarget::Title).await
+}
+
+/// Set folder names to just the BMS artist.
+///
+/// # Errors
+///
+/// Returns an error if directory operations fail.
+pub async fn set_artist_by_bms(root_dir: &Path) -> Result<(), DomainError> {
+    set_name_by_target(root_dir, SetNameTarget::Artist).await
+}
+
+async fn set_name_by_target(root_dir: &Path, target: SetNameTarget) -> Result<(), DomainError> {
     if !root_dir.is_dir() {
         return Ok(());
     }
@@ -162,7 +223,7 @@ pub async fn set_name_by_bms(root_dir: &Path) -> Result<(), DomainError> {
             .unwrap_or("")
             .to_string();
 
-        if !set_single_folder_name_by_bms(&dir_path).await? {
+        if !set_single_folder_name_by_bms(&dir_path, target).await? {
             fail_list.push(dir_name);
         }
     }
@@ -177,9 +238,12 @@ pub async fn set_name_by_bms(root_dir: &Path) -> Result<(), DomainError> {
     Ok(())
 }
 
-/// Set a single folder's name based on its BMS info
-/// Returns true if successful, false if skipped or failed
-async fn set_single_folder_name_by_bms(work_dir: &Path) -> Result<bool, DomainError> {
+/// Set a single folder's name based on its BMS info and target.
+/// Returns true if successful, false if skipped or failed.
+async fn set_single_folder_name_by_bms(
+    work_dir: &Path,
+    target: SetNameTarget,
+) -> Result<bool, DomainError> {
     let mut info = get_dir_bms_info(work_dir).await;
 
     while info.is_none() {
@@ -236,11 +300,8 @@ async fn set_single_folder_name_by_bms(work_dir: &Path) -> Result<bool, DomainEr
         return Ok(false);
     }
 
-    let new_dir_path = parent_dir.join(format!(
-        "{} [{}]",
-        get_valid_fs_name(&info.title),
-        get_valid_fs_name(&info.artist)
-    ));
+    let new_name = format_set_name(&info.title, &info.artist, target);
+    let new_dir_path = parent_dir.join(new_name);
 
     if work_dir == new_dir_path {
         return Ok(true);
@@ -278,6 +339,19 @@ async fn set_single_folder_name_by_bms(work_dir: &Path) -> Result<bool, DomainEr
     )
     .await?;
     Ok(true)
+}
+
+/// Format the new folder name based on the target.
+fn format_set_name(title: &str, artist: &str, target: SetNameTarget) -> String {
+    match target {
+        SetNameTarget::All => format!(
+            "{} [{}]",
+            get_valid_fs_name(title),
+            get_valid_fs_name(artist)
+        ),
+        SetNameTarget::Title => get_valid_fs_name(title),
+        SetNameTarget::Artist => get_valid_fs_name(artist),
+    }
 }
 
 /// Undo `set_name` by removing " \[artist\]" suffix.
@@ -419,6 +493,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_append_title() {
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("MySong");
+        fs::create_dir_all(&work).await.unwrap();
+        fs::write(
+            work.join("test.bms"),
+            "#TITLE GreatTitle\n#ARTIST ArtistName\n",
+        )
+        .await
+        .unwrap();
+
+        append_title_by_bms(root.path()).await.unwrap();
+
+        let mut read_dir = fs::read_dir(root.path()).await.unwrap();
+        let mut entries = Vec::new();
+        while let Some(entry) = read_dir.next_entry().await.unwrap() {
+            entries.push(entry);
+        }
+        assert_eq!(entries.len(), 1);
+        let name = entries[0].file_name().to_string_lossy().to_string();
+        assert!(name.contains("GreatTitle"), "missing title in: {name}");
+    }
+
+    #[tokio::test]
     async fn test_set_name_by_bms_basic() {
         let root = TempDir::new().unwrap();
         let work = root.path().join("123");
@@ -440,6 +538,54 @@ mod tests {
         assert_eq!(entries.len(), 1);
         let name = entries[0].file_name().to_string_lossy().to_string();
         assert_eq!(name, "NiceSong [NiceArtist]");
+    }
+
+    #[tokio::test]
+    async fn test_set_title_by_bms() {
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("123");
+        fs::create_dir_all(&work).await.unwrap();
+        fs::write(
+            work.join("test.bms"),
+            "#TITLE NiceSong\n#ARTIST NiceArtist\n",
+        )
+        .await
+        .unwrap();
+
+        set_title_by_bms(root.path()).await.unwrap();
+
+        let mut read_dir = fs::read_dir(root.path()).await.unwrap();
+        let mut entries = Vec::new();
+        while let Some(entry) = read_dir.next_entry().await.unwrap() {
+            entries.push(entry);
+        }
+        assert_eq!(entries.len(), 1);
+        let name = entries[0].file_name().to_string_lossy().to_string();
+        assert_eq!(name, "NiceSong");
+    }
+
+    #[tokio::test]
+    async fn test_set_artist_by_bms() {
+        let root = TempDir::new().unwrap();
+        let work = root.path().join("123");
+        fs::create_dir_all(&work).await.unwrap();
+        fs::write(
+            work.join("test.bms"),
+            "#TITLE NiceSong\n#ARTIST NiceArtist\n",
+        )
+        .await
+        .unwrap();
+
+        set_artist_by_bms(root.path()).await.unwrap();
+
+        let mut read_dir = fs::read_dir(root.path()).await.unwrap();
+        let mut entries = Vec::new();
+        while let Some(entry) = read_dir.next_entry().await.unwrap() {
+            entries.push(entry);
+        }
+        assert_eq!(entries.len(), 1);
+        let name = entries[0].file_name().to_string_lossy().to_string();
+        assert_eq!(name, "NiceArtist");
     }
 
     #[tokio::test]
