@@ -83,14 +83,14 @@ fn find_first_char_rule(name: &str) -> String {
 /// Returns [`std::io::Error`] if directory operations fail.
 pub async fn split_folders_with_first_char(root_dir: &Path) -> Result<(), DomainError> {
     if !root_dir.is_dir() {
-        println!("{} is not a dir! Aborting...", root_dir.display());
+        tracing::info!("{} is not a dir! Aborting...", root_dir.display());
         return Ok(());
     }
 
     let root_folder_name = root_dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
     if root_folder_name.ends_with(']') {
-        println!("{} endswith ']'. Aborting...", root_dir.display());
+        tracing::info!("{} endswith ']'. Aborting...", root_dir.display());
         return Ok(());
     }
 
@@ -120,7 +120,7 @@ pub async fn split_folders_with_first_char(root_dir: &Path) -> Result<(), Domain
         }
 
         let target_path = target_dir.join(element_name);
-        println!("Moving {element_path:?} -> {target_path:?}");
+        tracing::info!("Moving {element_path:?} -> {target_path:?}");
         fs::rename(&element_path, &target_path).await?;
     }
 
@@ -158,7 +158,7 @@ pub async fn undo_split_pack(root_dir: &Path) -> Result<(), DomainError> {
             if folder_name.starts_with(&format!("{root_folder_name} ["))
                 && folder_name.ends_with(']')
             {
-                println!(" - {} <- {}", root_dir.display(), folder_path.display());
+                tracing::info!(" - {} <- {}", root_dir.display(), folder_path.display());
                 pairs.push((folder_path, root_dir.to_path_buf()));
             }
         }
@@ -200,7 +200,7 @@ pub async fn move_works_in_pack(
 
             let bms_dir_name = bms_dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-            println!("Moving: {bms_dir_name}");
+            tracing::info!("Moving: {bms_dir_name}");
 
             let dst_bms_dir = root_dir_to.join(bms_dir_name);
             move_elements_across_dir(
@@ -215,7 +215,7 @@ pub async fn move_works_in_pack(
     }
 
     if move_count > 0 {
-        println!("Move {move_count} songs.");
+        tracing::info!("Move {move_count} songs.");
         return Ok(());
     }
 
@@ -330,7 +330,7 @@ pub async fn move_works_with_same_name(
         for to_name in &to_subdirs {
             if to_name.starts_with(from_name) {
                 let to_path = root_dir_to.join(to_name);
-                println!(" -> {from_name} => {to_name}");
+                tracing::info!(" -> {from_name} => {to_name}");
                 pairs.push((from_path.clone(), to_path));
                 break;
             }
@@ -342,7 +342,7 @@ pub async fn move_works_with_same_name(
     }
 
     for (from_path, to_path) in &pairs {
-        println!("合并: {} -> {}", from_path.display(), to_path.display());
+        tracing::info!("合并: {} -> {}", from_path.display(), to_path.display());
         move_elements_across_dir(
             from_path,
             to_path,
@@ -427,7 +427,7 @@ pub async fn move_works_with_same_name_to_siblings(
                 for to_name in &to_subdirs {
                     if to_name.starts_with(from_name) {
                         let target_path = sibling_path.join(to_name);
-                        println!(" -> {from_name} => {}", target_path.display());
+                        tracing::info!(" -> {from_name} => {}", target_path.display());
                         pairs.push((from_path.clone(), target_path));
                         break;
                     }
@@ -441,7 +441,7 @@ pub async fn move_works_with_same_name_to_siblings(
     }
 
     for (from_path, target_path) in &pairs {
-        println!("合并: {} -> {}", from_path.display(), target_path.display());
+        tracing::info!("合并: {} -> {}", from_path.display(), target_path.display());
         move_elements_across_dir(
             from_path,
             target_path,
@@ -504,7 +504,7 @@ pub async fn merge_split_folders(root_dir: &Path) -> Result<(), DomainError> {
                 .collect();
 
             if dir_names_with_starter.len() > 2 {
-                println!(
+                tracing::warn!(
                     " !_! {dir_name_without_artist} have more then 2 folders! {dir_names_with_starter:?}"
                 );
                 continue;
@@ -524,9 +524,9 @@ pub async fn merge_split_folders(root_dir: &Path) -> Result<(), DomainError> {
     }
 
     if !duplicate_list.is_empty() {
-        println!("Duplicate!");
+        tracing::info!("Duplicate!");
         for name in &duplicate_list {
-            println!(" -> {name}");
+            tracing::info!(" -> {name}");
         }
         return Err(DomainError::Archive(anyhow::anyhow!(
             "Found duplicate target directories: {duplicate_list:?}"
@@ -534,13 +534,13 @@ pub async fn merge_split_folders(root_dir: &Path) -> Result<(), DomainError> {
     }
 
     for (target_dir_name, from_dir_name) in &pairs {
-        println!("- Find Dir pair: {target_dir_name} <- {from_dir_name}");
+        tracing::info!("- Find Dir pair: {target_dir_name} <- {from_dir_name}");
     }
 
     for (target_dir_name, from_dir_name) in &pairs {
         let from_dir_path = root_dir.join(from_dir_name);
         let target_dir_path = root_dir.join(target_dir_name);
-        println!(" - Moving: {target_dir_name} <- {from_dir_name}");
+        tracing::info!(" - Moving: {target_dir_name} <- {from_dir_name}");
         move_elements_across_dir(
             &from_dir_path,
             &target_dir_path,

@@ -8,8 +8,6 @@ pub mod dispatch;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
-use crate::domain::event::jump::BMSEvent;
-
 /// BMS Resource Toolbox - CLI interface
 #[derive(Parser)]
 #[command(name = "bms-resource-toolbox")]
@@ -85,6 +83,17 @@ pub enum FolderCommands {
         #[arg(short, long)]
         path: PathBuf,
     },
+}
+
+/// 媒体清理预设。
+#[derive(ValueEnum, Clone, Debug)]
+pub enum RemoveMediaPreset {
+    /// ORAJA 规则：mp4>avi>wmv, flac/wav>ogg, flac>wav, mpg>wmv
+    Oraja,
+    /// WAV→FLAC：有 WAV 时移除对应 FLAC
+    WavFlac,
+    /// MPG→WMV：有 MPG 时移除对应 WMV
+    MpgWmv,
 }
 
 /// 文件夹命名模式
@@ -202,18 +211,27 @@ pub enum MediaCommands {
         /// Root directory path
         #[arg(short, long)]
         path: PathBuf,
-        /// Audio conversion mode (0=WAV→FLAC, 1=FLAC→OGG, 2=WAV→OGG, 3=FLAC→WAV)
-        #[arg(short, long, default_value_t = 0)]
-        mode: usize,
+        /// Audio conversion mode
+        #[arg(short, long, default_value = "wav-to-flac")]
+        mode: crate::domain::transfer::AudioMode,
     },
     /// 视频格式转换（MP4→AVI/WMV/MPEG）
     Video {
         /// Root directory path
         #[arg(short, long)]
         path: PathBuf,
-        /// Video format (0=AVI 512x512, 1=WMV2 512x512, 2=MPEG1 512x512)
-        #[arg(short, long, default_value_t = 0)]
-        format: usize,
+        /// Video output format
+        #[arg(short, long, default_value = "avi")]
+        format: crate::domain::transfer::VideoFormat,
+    },
+    /// 清理冗余媒体文件（按预设规则移除低优先格式）
+    RemoveUnneed {
+        /// BMS 根目录路径
+        #[arg(short, long)]
+        path: PathBuf,
+        /// 预设：oraja / wav-flac / mpg-wmv
+        #[arg(short, long, default_value = "oraja")]
+        preset: RemoveMediaPreset,
     },
 }
 
@@ -267,9 +285,9 @@ pub enum SourceCommands {
 pub enum EventCommands {
     /// 跳转至 BMS 活动作品信息页
     Jump {
-        /// BMS event (20=BOFTT, 21=BOF21, 103=LetsBMSEdit3)
-        #[arg(short, long, default_value_t = BMSEvent::BOFTT as i32)]
-        event: i32,
+        /// BMS event
+        #[arg(short, long, default_value = "boftt")]
+        event: crate::domain::event::jump::BMSEvent,
         /// Work ID(s) to open; if empty, opens event list
         #[arg(short, long)]
         work_id: Vec<i32>,

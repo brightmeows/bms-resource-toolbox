@@ -1,22 +1,39 @@
 //! CLI command dispatch.
 
 use super::{
-    Commands, EventCommands, FolderCommands, MediaCommands, PackCommands, SetNameMode,
-    SourceCommands,
+    Commands, EventCommands, FolderCommands, MediaCommands, PackCommands, RemoveMediaPreset,
+    SetNameMode, SourceCommands,
 };
 use crate::domain::error::DomainError;
-use crate::domain::event::jump::BMSEvent;
-use crate::domain::transfer::{AudioMode, VideoFormat};
+
+/// Prompt user for confirmation. Skips if `yes` is true.
+fn confirm_action(action: &str, target: &str, yes: bool) -> Result<(), DomainError> {
+    if yes {
+        return Ok(());
+    }
+    tracing::info!("下列操作需要确认：");
+    tracing::info!("  {action}: {target}");
+    if !dialoguer::Confirm::new()
+        .with_prompt("继续？")
+        .default(false)
+        .interact()
+        .map_err(std::io::Error::other)?
+    {
+        tracing::info!("已取消。");
+        return Err(DomainError::Cancelled);
+    }
+    Ok(())
+}
 
 /// Dispatch a CLI command to the appropriate domain function.
 ///
 /// # Errors
 ///
 /// Returns [`DomainError`] if the underlying domain operation fails.
-pub async fn dispatch(cmd: &Commands) -> Result<(), DomainError> {
+pub async fn dispatch(cmd: &Commands, yes: bool) -> Result<(), DomainError> {
     match cmd {
         Commands::Folder(cmd) => dispatch_folder(cmd).await,
-        Commands::Pack(cmd) => dispatch_pack(cmd).await,
+        Commands::Pack(cmd) => dispatch_pack(cmd, yes).await,
         Commands::Media(cmd) => dispatch_media(cmd).await,
         Commands::Source(cmd) => dispatch_source(cmd).await,
         Commands::Event(cmd) => dispatch_event(cmd).await,
@@ -54,12 +71,13 @@ async fn dispatch_folder(cmd: &FolderCommands) -> Result<(), DomainError> {
 
 // ── pack ────────────────────────────────────────────────
 
-async fn dispatch_pack(cmd: &PackCommands) -> Result<(), DomainError> {
+async fn dispatch_pack(cmd: &PackCommands, yes: bool) -> Result<(), DomainError> {
     match cmd {
         PackCommands::Split { path } => {
             crate::domain::folder::pack::split_folders_with_first_char(path).await
         }
         PackCommands::UndoSplit { path } => {
+            confirm_action("撤销首字符拆分", &path.display().to_string(), yes)?;
             crate::domain::folder::pack::undo_split_pack(path).await
         }
         PackCommands::MoveIn { from, to } => {
@@ -67,9 +85,15 @@ async fn dispatch_pack(cmd: &PackCommands) -> Result<(), DomainError> {
         }
         PackCommands::MoveOut { path } => crate::domain::folder::pack::move_out_works(path).await,
         PackCommands::MergeSameName { from, to } => {
+            confirm_action(
+                "合并同名文件夹",
+                &format!("{} → {}", from.display(), to.display()),
+                yes,
+            )?;
             crate::domain::folder::pack::move_works_with_same_name(from, to).await
         }
         PackCommands::MergeToSiblings { path } => {
+            confirm_action("合并至平级目录", &path.display().to_string(), yes)?;
             crate::domain::folder::pack::move_works_with_same_name_to_siblings(path).await
         }
         PackCommands::MergeSplit { path } => {
@@ -91,18 +115,24 @@ async fn dispatch_pack(cmd: &PackCommands) -> Result<(), DomainError> {
 async fn dispatch_media(cmd: &MediaCommands) -> Result<(), DomainError> {
     match cmd {
         MediaCommands::Audio { path, mode } => {
-            let mode = AudioMode::all()
-                .get(*mode)
-                .copied()
-                .unwrap_or(AudioMode::WavToFlac);
-            crate::domain::transfer::transfer_audio(path, mode).await
+            crate::domain::transfer::transfer_audio(path, *mode).await
         }
         MediaCommands::Video { path, format } => {
-            let format = VideoFormat::all()
-                .get(*format)
-                .copied()
-                .unwrap_or(VideoFormat::Avi);
-            crate::domain::transfer::transfer_video(path, format).await
+            crate::domain::transfer::transfer_video(path, *format).await
+        }
+        MediaCommands::RemoveUnneed { path, preset } => {
+            let rule = match preset {
+                RemoveMediaPreset::WavFlac => {
+                    crate::domain::folder::media::get_remove_media_rule_wav_flac()
+                }
+                RemoveMediaPreset::MpgWmv => {
+                    crate::domain::folder::media::get_remove_media_rule_mpg_wmv()
+                }
+                RemoveMediaPreset::Oraja => {
+                    crate::domain::folder::media::get_remove_media_rule_oraja()
+                }
+            };
+            crate::domain::folder::media::remove_unneed_media_files(path, rule).await
         }
     }
 }
@@ -130,8 +160,7 @@ async fn dispatch_source(cmd: &SourceCommands) -> Result<(), DomainError> {
 async fn dispatch_event(cmd: &EventCommands) -> Result<(), DomainError> {
     match cmd {
         EventCommands::Jump { event, work_id } => {
-            let event = BMSEvent::from_i32(*event);
-            crate::domain::event::jump::jump_to_work_info(event, work_id);
+            crate::domain::event::jump::jump_to_work_info(*event, work_id);
             Ok(())
         }
         EventCommands::CheckFolders { path, count } => {
@@ -144,5 +173,16 @@ async fn dispatch_event(cmd: &EventCommands) -> Result<(), DomainError> {
         EventCommands::GenerateTable { path } => {
             crate::domain::event::folder::generate_work_info_table(path).await
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_confirm_action_yes_skips() {
+        let result = confirm_action("test", "target", true);
+        assert!(result.is_ok(), "yes=true should skip confirmation");
     }
 }

@@ -5,7 +5,7 @@
 use webbrowser;
 
 /// BMS event types for work information pages.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum BMSEvent {
     /// BOF Team Festival.
     BOFTT = 20,
@@ -53,13 +53,13 @@ impl BMSEvent {
 /// If `work_ids` is empty, opens the event list page.
 pub fn jump_to_work_info(event: BMSEvent, work_ids: &[i32]) {
     if work_ids.is_empty() {
-        println!("Open BMS List.");
+        tracing::info!("Open BMS List.");
         open_url(event.list_url());
         return;
     }
 
     for &id in work_ids {
-        println!("Open no.{id}");
+        tracing::info!("Open no.{id}");
         open_url(&event.work_info_url(id));
     }
 }

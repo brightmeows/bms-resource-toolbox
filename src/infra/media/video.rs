@@ -286,7 +286,7 @@ pub async fn transfer_video_by_format_in_dir(
         }
     }
 
-    println!("Found {} video files to convert in {:?}", files.len(), dir);
+    tracing::info!("Found {} video files to convert in {:?}", files.len(), dir);
 
     if files.is_empty() {
         return Ok(());
@@ -331,7 +331,7 @@ pub async fn transfer_video_by_format_in_dir(
                     if remove_existing_target_file {
                         let _ = fs::remove_file(&output).await;
                     } else {
-                        println!("File exists: {output:?}");
+                        tracing::info!("File exists: {output:?}");
                         continue;
                     }
                 }
@@ -385,8 +385,8 @@ pub async fn transfer_video_by_format_in_dir(
             }
 
             if last_error {
-                println!("Has Error!");
-                println!("{last_err_msg}");
+                tracing::info!("Has Error!");
+                tracing::info!("{last_err_msg}");
                 Err(anyhow::anyhow!(
                     "All presets failed for {}",
                     file_path.display()

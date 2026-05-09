@@ -15,7 +15,7 @@ pub fn check_num_folder(bms_dir: &Path, max_count: i32) {
         let folder_path = bms_dir.join(format!("{i}"));
 
         if !folder_path.is_dir() {
-            println!("{} is not exist!", folder_path.display());
+            tracing::info!("{} is not exist!", folder_path.display());
         }
     }
 }
@@ -26,7 +26,7 @@ pub fn check_num_folder(bms_dir: &Path, max_count: i32) {
 ///
 /// Returns an error if directory operations fail.
 pub async fn create_num_folders(root_dir: &Path, folder_count: i32) -> Result<(), DomainError> {
-    println!("Creating {folder_count} numbered folders in {root_dir:?}");
+    tracing::info!("Creating {folder_count} numbered folders in {root_dir:?}");
 
     // Get existing elements to check for conflicts
     let mut existing_elements: Vec<String> = Vec::new();
@@ -53,12 +53,12 @@ pub async fn create_num_folders(root_dir: &Path, folder_count: i32) -> Result<()
         });
 
         if id_exists {
-            println!("  Folder {i} conflicts with existing entry, skipping");
+            tracing::info!("  Folder {i} conflicts with existing entry, skipping");
             continue;
         }
 
         fs::create_dir_all(&folder_path).await?;
-        println!("  Created folder {i}");
+        tracing::info!("  Created folder {i}");
     }
 
     Ok(())
@@ -76,7 +76,7 @@ pub async fn create_num_folders(root_dir: &Path, folder_count: i32) -> Result<()
 ///
 /// Panics if stdout flush fails.
 pub async fn generate_work_info_table(root_dir: &Path) -> Result<(), DomainError> {
-    println!("Generating work info table for: {root_dir:?}");
+    tracing::info!("Generating work info table for: {root_dir:?}");
 
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
@@ -99,7 +99,7 @@ pub async fn generate_work_info_table(root_dir: &Path) -> Result<(), DomainError
 
         let id_str = work_name.split('.').next().unwrap_or("");
         if id_str.is_empty() || !id_str.chars().all(|c| c.is_ascii_digit()) {
-            println!("Warning: Skipping dir {work_name} - invalid id format: {id_str}");
+            tracing::info!("Warning: Skipping dir {work_name} - invalid id format: {id_str}");
             continue;
         }
         let id_num: u32 = id_str.parse().unwrap_or(0);
@@ -124,7 +124,7 @@ pub async fn generate_work_info_table(root_dir: &Path) -> Result<(), DomainError
     }
 
     let table_path = root_dir.join("bms_list.xlsx");
-    println!("Saving table to {}", table_path.display());
+    tracing::info!("Saving table to {}", table_path.display());
     workbook
         .save(&table_path)
         .map_err(|e| DomainError::Archive(anyhow::anyhow!("{e}")))?;

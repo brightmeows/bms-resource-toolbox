@@ -103,12 +103,12 @@ async fn append_by_target(root_dir: &Path, target: AppendTarget) -> Result<(), D
 
                 let info = get_dir_bms_info(&dir_path).await;
                 let Some(info) = info else {
-                    println!("Dir {} has no bms files!", dir_path.display());
+                    tracing::info!("Dir {} has no bms files!", dir_path.display());
                     continue;
                 };
 
                 let new_dir_name = format!("{dir_name} [{}]", get_valid_fs_name(&info.artist));
-                println!("- Ready to rename: {dir_name} -> {new_dir_name}");
+                tracing::info!("- Ready to rename: {dir_name} -> {new_dir_name}");
                 pairs.push((dir_path, root_dir.join(&new_dir_name)));
             }
             AppendTarget::Title => {
@@ -118,19 +118,19 @@ async fn append_by_target(root_dir: &Path, target: AppendTarget) -> Result<(), D
 
                 let info = get_dir_bms_info(&dir_path).await;
                 let Some(info) = info else {
-                    println!("Dir {} has no bms files!", dir_path.display());
+                    tracing::info!("Dir {} has no bms files!", dir_path.display());
                     continue;
                 };
 
                 let new_dir_name = format!("{} {}", dir_name, get_valid_fs_name(&info.title));
-                println!("- Ready to rename: {dir_name} -> {new_dir_name}");
+                tracing::info!("- Ready to rename: {dir_name} -> {new_dir_name}");
                 pairs.push((dir_path, root_dir.join(&new_dir_name)));
             }
         }
     }
 
     if pairs.is_empty() {
-        println!("No folders to rename");
+        tracing::info!("No folders to rename");
         return Ok(());
     }
 
@@ -229,9 +229,9 @@ async fn set_name_by_target(root_dir: &Path, target: SetNameTarget) -> Result<()
     }
 
     if !fail_list.is_empty() {
-        println!("Fail Count: {}", fail_list.len());
+        tracing::info!("Fail Count: {}", fail_list.len());
         for name in &fail_list {
-            println!("  {name}");
+            tracing::info!("  {name}");
         }
     }
 
@@ -247,7 +247,7 @@ async fn set_single_folder_name_by_bms(
     let mut info = get_dir_bms_info(work_dir).await;
 
     while info.is_none() {
-        println!(
+        tracing::info!(
             "{} has no bms/bmson files! Trying to move out.",
             work_dir.display()
         );
@@ -259,11 +259,11 @@ async fn set_single_folder_name_by_bms(
         }
 
         if elements.is_empty() {
-            println!(" - Empty dir! Deleting...");
+            tracing::info!(" - Empty dir! Deleting...");
             match fs::remove_dir(work_dir).await {
                 Ok(()) => {}
                 Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-                    println!(" x PermissionError: {e}");
+                    tracing::info!(" x PermissionError: {e}");
                 }
                 Err(e) => return Err(e.into()),
             }
@@ -271,17 +271,17 @@ async fn set_single_folder_name_by_bms(
         }
 
         if elements.len() != 1 {
-            println!(" - Element count: {}", elements.len());
+            tracing::info!(" - Element count: {}", elements.len());
             return Ok(false);
         }
 
         let inner_path = &elements[0].path();
         if !inner_path.is_dir() {
-            println!(" - Folder has only a file: {:?}", inner_path.file_name());
+            tracing::info!(" - Folder has only a file: {:?}", inner_path.file_name());
             return Ok(false);
         }
 
-        println!(" - Moving out files...");
+        tracing::info!(" - Moving out files...");
         move_elements_across_dir(
             inner_path,
             work_dir,
@@ -296,7 +296,7 @@ async fn set_single_folder_name_by_bms(
     let parent_dir = work_dir.parent().unwrap_or(work_dir);
 
     if info.title.is_empty() && info.artist.is_empty() {
-        println!("{}: Info title and artist is EMPTY!", work_dir.display());
+        tracing::info!("{}: Info title and artist is EMPTY!", work_dir.display());
         return Ok(false);
     }
 
@@ -307,7 +307,7 @@ async fn set_single_folder_name_by_bms(
         return Ok(true);
     }
 
-    println!(
+    tracing::info!(
         "{}: Rename! Title: {}; Artist: {}",
         work_dir.display(),
         info.title,
@@ -320,17 +320,17 @@ async fn set_single_folder_name_by_bms(
     }
 
     let similarity = bms_dir_similarity(work_dir, &new_dir_path).await;
-    println!(
+    tracing::info!(
         " - Directory {} exists! Similarity: {similarity}",
         new_dir_path.display()
     );
 
     if similarity < 0.8 {
-        println!(" - Merge canceled.");
+        tracing::info!(" - Merge canceled.");
         return Ok(false);
     }
 
-    println!(" - Merge start!");
+    tracing::info!(" - Merge start!");
     move_elements_across_dir(
         work_dir,
         &new_dir_path,
@@ -390,14 +390,14 @@ pub async fn undo_set_name(root_dir: &Path) -> Result<(), DomainError> {
         let new_dir_path = root_dir.join(new_dir_name);
 
         if new_dir_path.is_dir() {
-            println!(
+            tracing::warn!(
                 "Warning: Target {} already exists! Skipping {dir_name}",
                 new_dir_path.display()
             );
             continue;
         }
 
-        println!("Rename {dir_name} to {new_dir_name}");
+        tracing::info!("Rename {dir_name} to {new_dir_name}");
         fs::rename(&dir_path, &new_dir_path).await?;
     }
 

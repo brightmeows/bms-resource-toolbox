@@ -24,6 +24,18 @@ pub fn get_remove_media_rule_oraja() -> RemoveMediaRule {
     ]
 }
 
+/// WAV→FLAC removal rule: if WAV exists, remove corresponding FLAC.
+#[must_use]
+pub fn get_remove_media_rule_wav_flac() -> RemoveMediaRule {
+    vec![(vec!["wav"], vec!["flac"])]
+}
+
+/// MPG→WMV removal rule: if MPG exists, remove corresponding WMV.
+#[must_use]
+pub fn get_remove_media_rule_mpg_wmv() -> RemoveMediaRule {
+    vec![(vec!["mpg"], vec!["wmv"])]
+}
+
 async fn workdir_remove_unneed_media_files(
     work_dir: &Path,
     rule: &RemoveMediaRule,
@@ -57,7 +69,7 @@ async fn workdir_remove_unneed_media_files(
                 .await
                 .is_ok_and(|m| m.len() == 0)
             {
-                println!(" - !x!: File {check_file_path:?} is Empty! Skipping...");
+                tracing::info!(" - !x!: File {check_file_path:?} is Empty! Skipping...");
                 continue;
             }
 
@@ -76,7 +88,7 @@ async fn workdir_remove_unneed_media_files(
     }
 
     for (check_file_path, replacing_file_path) in &remove_pairs {
-        println!(
+        tracing::info!(
             "- Remove file {:?}, because {:?} exists.",
             replacing_file_path.file_name(),
             check_file_path.file_name()
@@ -111,7 +123,7 @@ async fn workdir_remove_unneed_media_files(
     if let Some(mp4_files) = ext_count.get("mp4")
         && mp4_files.len() > 1
     {
-        println!(" - Tips: {work_dir:?} has more than 1 mp4 files!");
+        tracing::info!(" - Tips: {work_dir:?} has more than 1 mp4 files!");
     }
 
     Ok(())
@@ -126,7 +138,7 @@ pub async fn remove_unneed_media_files(
     root_dir: &Path,
     rule: RemoveMediaRule,
 ) -> Result<(), DomainError> {
-    println!("Selected: {rule:?}");
+    tracing::info!("Selected: {rule:?}");
 
     let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
@@ -208,5 +220,21 @@ mod tests {
             .await
             .unwrap();
         assert!(wd.join("a.flac").is_file());
+    }
+
+    #[test]
+    fn test_get_remove_media_rule_wav_flac() {
+        let rule = get_remove_media_rule_wav_flac();
+        assert_eq!(rule.len(), 1);
+        assert_eq!(rule[0].0, vec!["wav"]);
+        assert_eq!(rule[0].1, vec!["flac"]);
+    }
+
+    #[test]
+    fn test_get_remove_media_rule_mpg_wmv() {
+        let rule = get_remove_media_rule_mpg_wmv();
+        assert_eq!(rule.len(), 1);
+        assert_eq!(rule[0].0, vec!["mpg"]);
+        assert_eq!(rule[0].1, vec!["wmv"]);
     }
 }

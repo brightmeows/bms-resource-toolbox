@@ -19,13 +19,13 @@ pub async fn unzip_with_name_to_bms_folder(
     cache_dir: &Path,
     root_dir: &Path,
 ) -> Result<(), DomainError> {
-    println!("Unzip with name to BMS folder: {pack_dir:?} -> {root_dir:?}");
+    tracing::info!("Unzip with name to BMS folder: {pack_dir:?} -> {root_dir:?}");
 
     create_directories(cache_dir, root_dir).await?;
     let archive_names = get_archive_files(pack_dir).await;
 
     if archive_names.is_empty() {
-        println!("No archive files found in {pack_dir:?}");
+        tracing::info!("No archive files found in {pack_dir:?}");
         return Ok(());
     }
 
@@ -89,7 +89,7 @@ async fn process_single_archive(
     extract_archive(&file_path, &cache_dir_path).await?;
 
     if !move_out_files_in_folder_in_cache_dir(&cache_dir_path, &CHART_FILE_EXTS).await {
-        println!("Failed to process cache dir: {cache_dir_path:?}");
+        tracing::info!("Failed to process cache dir: {cache_dir_path:?}");
         return Ok(());
     }
 
@@ -98,7 +98,7 @@ async fn process_single_archive(
     let _ = fs::remove_dir(&cache_dir_path).await;
     move_original_to_bofttpacks(&file_path, pack_dir, file_name).await;
 
-    println!("Finished processing: {file_name}");
+    tracing::info!("Finished processing: {file_name}");
     Ok(())
 }
 
@@ -118,7 +118,7 @@ async fn prepare_cache_directory(cache_dir_path: &Path) -> Result<(), DomainErro
             }
         };
         if has_files {
-            println!("Removing existing cache dir: {cache_dir_path:?}");
+            tracing::info!("Removing existing cache dir: {cache_dir_path:?}");
             fs::remove_dir_all(cache_dir_path).await?;
         }
     }
@@ -133,7 +133,7 @@ pub(super) async fn move_cache_to_bms_dir(
     cache_dir_path: &Path,
     target_dir_path: &Path,
 ) -> Result<(), DomainError> {
-    println!("Moving files from {cache_dir_path:?} to {target_dir_path:?}");
+    tracing::info!("Moving files from {cache_dir_path:?} to {target_dir_path:?}");
 
     let mut read_dir = fs::read_dir(cache_dir_path).await?;
     let mut entries = Vec::new();

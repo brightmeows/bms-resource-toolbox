@@ -127,7 +127,7 @@ pub async fn move_elements_across_dir(
 
     for (src_path, final_dst_path) in write_ops {
         if options.print_info {
-            println!("Moving {src_path:?} -> {final_dst_path:?}");
+            tracing::info!("Moving {src_path:?} -> {final_dst_path:?}");
         }
         move_file(&src_path, &final_dst_path).await?;
     }
@@ -149,7 +149,7 @@ pub async fn move_elements_across_dir(
             .all(|&v| v == ReplaceAction::Replace);
     let should_clean = all_replace || !is_dir_having_file(src).await;
     if should_clean && let Err(e) = fs::remove_dir_all(src).await {
-        println!("Failed to remove source directory {src:?}: {e}");
+        tracing::info!("Failed to remove source directory {src:?}: {e}");
     }
 
     Ok(())

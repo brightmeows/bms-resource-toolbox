@@ -24,7 +24,7 @@ pub async fn unzip_numeric_to_bms_folder(
     cache_dir: &Path,
     root_dir: &Path,
 ) -> Result<(), DomainError> {
-    println!("Unzip numeric to BMS folder: {pack_dir:?} -> {root_dir:?}");
+    tracing::info!("Unzip numeric to BMS folder: {pack_dir:?} -> {root_dir:?}");
 
     if !cache_dir.is_dir() {
         fs::create_dir_all(cache_dir).await?;
@@ -34,7 +34,7 @@ pub async fn unzip_numeric_to_bms_folder(
     }
 
     let num_set_file_names = get_num_set_file_names(pack_dir).await;
-    println!("Found {} numbered pack files", num_set_file_names.len());
+    tracing::info!("Found {} numbered pack files", num_set_file_names.len());
 
     for file_name in &num_set_file_names {
         let file_path = pack_dir.join(file_name);
@@ -56,11 +56,11 @@ pub async fn unzip_numeric_to_bms_folder(
             fs::create_dir_all(&cache_dir_path).await?;
         }
 
-        println!("Extracting {file_path:?} to {cache_dir_path:?}");
+        tracing::info!("Extracting {file_path:?} to {cache_dir_path:?}");
         extract_archive(&file_path, &cache_dir_path).await?;
 
         if !move_out_files_in_folder_in_cache_dir(&cache_dir_path, &CHART_FILE_EXTS).await {
-            println!("Failed to process cache dir: {cache_dir_path:?}");
+            tracing::info!("Failed to process cache dir: {cache_dir_path:?}");
             continue;
         }
 
@@ -94,7 +94,7 @@ pub async fn unzip_numeric_to_bms_folder(
         super::unzip_name::move_cache_to_bms_dir(&cache_dir_path, &target_dir_path).await?;
         let _ = fs::remove_dir(&cache_dir_path).await;
 
-        println!("Finished processing: {file_name}");
+        tracing::info!("Finished processing: {file_name}");
         let used_pack_dir = pack_dir.join("BOFTTPacks");
         if !used_pack_dir.is_dir() {
             fs::create_dir_all(&used_pack_dir).await?;
@@ -116,7 +116,7 @@ pub async fn unzip_numeric_to_bms_folder(
 pub async fn set_file_num(dir: &Path, file_idx: usize, num: i32) -> Result<(), DomainError> {
     const ALLOWED_EXTS: &[&str] = &["zip", "7z", "rar", "mp4", "bms", "bme", "bml", "pms"];
 
-    println!("Setting file numbers in: {dir:?}");
+    tracing::info!("Setting file numbers in: {dir:?}");
 
     let mut file_names: Vec<String> = Vec::new();
 
@@ -156,17 +156,17 @@ pub async fn set_file_num(dir: &Path, file_idx: usize, num: i32) -> Result<(), D
     }
 
     if file_names.is_empty() {
-        println!("No files to number");
+        tracing::info!("No files to number");
         return Ok(());
     }
 
-    println!("Here are files in {}:", dir.display());
+    tracing::info!("Here are files in {}:", dir.display());
     for (i, name) in file_names.iter().enumerate() {
-        println!(" - {i}: {name}");
+        tracing::info!(" - {i}: {name}");
     }
 
     let Some(file_name) = file_names.get(file_idx) else {
-        println!(
+        tracing::warn!(
             "Invalid file index {file_idx}, max is {}",
             file_names.len() - 1
         );
@@ -177,7 +177,7 @@ pub async fn set_file_num(dir: &Path, file_idx: usize, num: i32) -> Result<(), D
     let new_file_name = format!("{num} {file_name}");
     let new_file_path = dir.join(&new_file_name);
 
-    println!("Rename {file_name} to {new_file_name}");
+    tracing::info!("Rename {file_name} to {new_file_name}");
     fs::rename(&file_path, &new_file_path).await?;
 
     Ok(())

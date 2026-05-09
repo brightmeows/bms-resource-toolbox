@@ -69,7 +69,7 @@ async fn remove_existing_target(output: &Path, remove: bool) {
         && output.is_file()
         && let Err(e) = fs::remove_file(output).await
     {
-        println!("Failed to remove existing target file {output:?}: {e}");
+        tracing::info!("Failed to remove existing target file {output:?}: {e}");
     }
 }
 
@@ -135,7 +135,7 @@ async fn should_skip_output(output: &Path, remove_existing: bool) -> bool {
         && metadata.len() > 0
         && !remove_existing
     {
-        println!("File {output:?} exists! Skipping...");
+        tracing::info!("File {output:?} exists! Skipping...");
         return true;
     }
     remove_existing_target(output, remove_existing).await;
@@ -173,13 +173,13 @@ pub async fn transfer_audio_by_format_in_dir(
 
     let initial_tasks = collect_tasks(dir, input_exts).await;
     let file_count = initial_tasks.len();
-    println!("Found {file_count} files to convert in {dir:?}");
+    tracing::info!("Found {file_count} files to convert in {dir:?}");
 
     if initial_tasks.is_empty() {
         return Ok(());
     }
 
-    println!("Entering dir: {dir:?} Input ext: {input_exts:?}");
+    tracing::info!("Entering dir: {dir:?} Input ext: {input_exts:?}");
 
     let mut task_queue: std::collections::VecDeque<(PathBuf, usize)> =
         initial_tasks.into_iter().collect();
@@ -234,12 +234,12 @@ pub async fn transfer_audio_by_format_in_dir(
                             && input.is_file()
                             && let Err(e) = fs::remove_file(&input).await
                         {
-                            println!("Failed to remove origin file {input:?}: {e}");
+                            tracing::info!("Failed to remove origin file {input:?}: {e}");
                         }
                     }
                     Err(e) => {
                         let stderr_str = e.to_string();
-                        println!("Conversion failed for {input:?}: {e}");
+                        tracing::info!("Conversion failed for {input:?}: {e}");
                         switch_next_list.push((input.clone(), preset_idx));
                         err_file_path = input.to_string_lossy().to_string();
                         err_stderr = stderr_str;
@@ -257,7 +257,7 @@ pub async fn transfer_audio_by_format_in_dir(
                     && input.is_file()
                     && let Err(e) = fs::remove_file(&input).await
                 {
-                    println!("Failed to remove failed origin file {input:?}: {e}");
+                    tracing::info!("Failed to remove failed origin file {input:?}: {e}");
                 }
                 if options.stop_on_error {
                     return Err(anyhow::anyhow!(
@@ -304,20 +304,20 @@ pub async fn transfer_audio_by_format_in_dir(
     }
 
     if has_error {
-        println!("Has Error!");
-        println!("- Err file_path: {err_file_path}");
-        println!("- Err stdout: {err_stdout}");
-        println!("- Err stderr: {err_stderr}");
+        tracing::info!("Has Error!");
+        tracing::info!("- Err file_path: {err_file_path}");
+        tracing::info!("- Err stdout: {err_stdout}");
+        tracing::info!("- Err stderr: {err_stderr}");
         if options.remove_origin_on_failed {
-            println!("The failed origin file has been removed.");
+            tracing::info!("The failed origin file has been removed.");
         }
     }
 
     if file_count > 0 {
-        println!("Parsed {file_count} file(s).");
+        tracing::info!("Parsed {file_count} file(s).");
     }
     if !fallback_file_names.is_empty() {
-        println!(
+        tracing::info!(
             "Fallback: {:?}. Totally {} files.",
             fallback_file_names,
             fallback_file_names.len()

@@ -65,9 +65,9 @@ pub async fn move_out_files_in_folder_in_cache_dir(
 
             if cache_path.is_dir() {
                 if cache_name == "__MACOSX" {
-                    println!("Removing __MACOSX directory: {cache_path:?}");
+                    tracing::info!("Removing __MACOSX directory: {cache_path:?}");
                     if let Err(e) = fs::remove_dir_all(&cache_path).await {
-                        println!("Failed to remove __MACOSX: {e}");
+                        tracing::info!("Failed to remove __MACOSX: {e}");
                     }
                     continue;
                 }
@@ -93,7 +93,7 @@ pub async fn move_out_files_in_folder_in_cache_dir(
             if has_bms {
                 done = true;
             } else {
-                println!(
+                tracing::warn!(
                     " !_! {}: has more than 1 folders, please do it manually.",
                     cache_dir_path.display()
                 );
@@ -123,14 +123,14 @@ pub async fn move_out_files_in_folder_in_cache_dir(
     }
 
     if final_folder_count == 0 && final_file_count == 0 {
-        println!(" !_! {}: Cache is Empty!", cache_dir_path.display());
+        tracing::info!(" !_! {}: Cache is Empty!", cache_dir_path.display());
         let _ = fs::remove_dir(cache_dir_path).await;
         return false;
     }
 
     let mp4_count = file_ext_count.get("mp4").map_or(0, Vec::len);
     if mp4_count > 1 {
-        println!(
+        tracing::info!(
             " - Tips: {} has more than 1 mp4 files!",
             cache_dir_path.display()
         );
@@ -162,13 +162,13 @@ async fn move_inner_dir(cache_dir_path: &Path, inner_name: &str) -> bool {
     let inner_dir_path = cache_dir_path.join(inner_name);
     let inner_inner_dir_path = inner_dir_path.join(inner_name);
     if inner_inner_dir_path.is_dir() {
-        println!(" - Renaming inner inner dir name: {inner_inner_dir_path:?}");
+        tracing::info!(" - Renaming inner inner dir name: {inner_inner_dir_path:?}");
         let new_path = inner_inner_dir_path.with_file_name(format!("{inner_name}-rep"));
         if let Err(e) = fs::rename(&inner_inner_dir_path, &new_path).await {
-            println!("Failed to rename inner inner dir: {e}");
+            tracing::info!("Failed to rename inner inner dir: {e}");
         }
     }
-    println!(" - Moving inner files in {inner_dir_path:?} to {cache_dir_path:?}");
+    tracing::info!(" - Moving inner files in {inner_dir_path:?} to {cache_dir_path:?}");
     if let Err(e) = move_elements_across_dir(
         &inner_dir_path,
         cache_dir_path,
@@ -177,7 +177,7 @@ async fn move_inner_dir(cache_dir_path: &Path, inner_name: &str) -> bool {
     )
     .await
     {
-        println!("Failed to move elements: {e}");
+        tracing::info!("Failed to move elements: {e}");
         return true;
     }
     let _ = fs::remove_dir(&inner_dir_path).await;

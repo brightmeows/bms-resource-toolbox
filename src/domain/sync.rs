@@ -94,7 +94,7 @@ fn format_file_names(paths: &[PathBuf]) -> Vec<&str> {
 
 fn log_op(label: &str, paths: &[PathBuf]) {
     if !paths.is_empty() {
-        println!("{label}: {:?}", format_file_names(paths));
+        tracing::info!("{label}: {:?}", format_file_names(paths));
     }
 }
 
@@ -368,7 +368,7 @@ pub async fn sync_folder(
         || !dst_remove_files.is_empty()
         || !dst_remove_dirs.is_empty()
     {
-        println!("{} -> {}:", src_dir.display(), dst_dir.display());
+        tracing::info!("{} -> {}:", src_dir.display(), dst_dir.display());
         log_op("Src copy", &src_copy_files);
         log_op("Src move", &src_move_files);
         log_op("Src remove", &src_remove_files);

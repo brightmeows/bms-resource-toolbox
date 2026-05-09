@@ -21,10 +21,10 @@ pub async fn remove_empty_dirs(dir: &Path) -> Result<(), std::io::Error> {
             continue;
         }
         if !super::pack_move::is_dir_having_file(&path).await {
-            println!("Remove empty dir: {path:?}");
+            tracing::info!("Remove empty dir: {path:?}");
             match fs::remove_dir_all(&path).await {
                 Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-                    println!(" x PermissionError!");
+                    tracing::info!(" x PermissionError!");
                 }
                 Err(e) => return Err(e),
                 Ok(()) => {}

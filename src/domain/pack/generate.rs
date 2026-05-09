@@ -41,7 +41,7 @@ async fn bms_folder_transfer_audio(
         if let Err(e) =
             transfer_audio_by_format_in_dir(&bms_dir_path, input_exts, presets, options).await
         {
-            println!(" - Dir: {bms_dir_path:?} Error occured!");
+            tracing::info!(" - Dir: {bms_dir_path:?} Error occured!");
             if options.stop_on_error {
                 return Err(e.into());
             }
@@ -74,7 +74,7 @@ async fn bms_folder_transfer_video(
         )
         .await
         {
-            println!("Error occured!");
+            tracing::info!("Error occured!");
             return Err(e.into());
         }
     }
@@ -91,10 +91,10 @@ async fn bms_folder_transfer_video(
 ///
 /// Returns an error if directory operations fail.
 pub async fn pack_raw_to_hq(root_dir: &Path) -> Result<(), DomainError> {
-    println!("Pack RAW -> HQ for: {root_dir:?}");
+    tracing::info!("Pack RAW -> HQ for: {root_dir:?}");
 
     // Phase 1: Convert WAV to FLAC
-    println!("Parsing Audio... Phase 1: WAV -> FLAC");
+    tracing::info!("Parsing Audio... Phase 1: WAV -> FLAC");
     let flac_preset = AUDIO_PRESET_FLAC.clone();
     let flac_ffmpeg_preset = AUDIO_PRESET_FLAC_FFMPEG.clone();
     bms_folder_transfer_audio(
@@ -111,7 +111,7 @@ pub async fn pack_raw_to_hq(root_dir: &Path) -> Result<(), DomainError> {
     .await?;
 
     // Phase 2: Remove unnecessary media files
-    println!("Removing Unneed Files");
+    tracing::info!("Removing Unneed Files");
     remove_unneed_media_files(root_dir, get_remove_media_rule_oraja()).await?;
 
     Ok(())
@@ -126,10 +126,10 @@ pub async fn pack_raw_to_hq(root_dir: &Path) -> Result<(), DomainError> {
 ///
 /// Returns an error if directory operations fail.
 pub async fn pack_hq_to_lq(root_dir: &Path) -> Result<(), DomainError> {
-    println!("Pack HQ -> LQ for: {root_dir:?}");
+    tracing::info!("Pack HQ -> LQ for: {root_dir:?}");
 
     // Phase 1: Convert FLAC to OGG
-    println!("Parsing Audio... Phase 1: FLAC -> OGG");
+    tracing::info!("Parsing Audio... Phase 1: FLAC -> OGG");
     let ogg_preset = AUDIO_PRESET_OGG_Q10.clone();
     let ogg_ffmpeg = AUDIO_PRESET_OGG_FFMPEG.clone();
     bms_folder_transfer_audio(
@@ -146,7 +146,7 @@ pub async fn pack_hq_to_lq(root_dir: &Path) -> Result<(), DomainError> {
     .await?;
 
     // Phase 2: Convert video
-    println!("Parsing Video...");
+    tracing::info!("Parsing Video...");
     let presets = vec![
         VIDEO_PRESET_MPEG1VIDEO_512X512.clone(),
         VIDEO_PRESET_WMV2_512X512.clone(),
@@ -163,10 +163,10 @@ pub async fn pack_hq_to_lq(root_dir: &Path) -> Result<(), DomainError> {
 ///
 /// Returns an error if directory operations fail.
 pub async fn pack_setup_rawpack_to_hq(pack_dir: &Path, root_dir: &Path) -> Result<(), DomainError> {
-    println!("Pack Setup RAW -> HQ: {pack_dir:?} -> {root_dir:?}");
+    tracing::info!("Pack Setup RAW -> HQ: {pack_dir:?} -> {root_dir:?}");
 
     if !pack_dir.is_dir() {
-        println!("Pack dir is not vaild dir.");
+        tracing::info!("Pack dir is not vaild dir.");
         return Err(DomainError::Archive(anyhow::anyhow!(
             "Pack dir is not a valid directory"
         )));
@@ -181,7 +181,7 @@ pub async fn pack_setup_rawpack_to_hq(pack_dir: &Path, root_dir: &Path) -> Resul
     let cache_dir = root_dir.join("CacheDir");
 
     // Step 1: Unzip packs
-    println!("Unzipping packs from {pack_dir:?} to {root_dir:?}");
+    tracing::info!("Unzipping packs from {pack_dir:?} to {root_dir:?}");
     unzip_numeric_to_bms_folder(pack_dir, &cache_dir, root_dir).await?;
 
     // Remove cache dir if empty
@@ -190,11 +190,11 @@ pub async fn pack_setup_rawpack_to_hq(pack_dir: &Path, root_dir: &Path) -> Resul
     }
 
     // Step 2: Set dir names from BMS files
-    println!("Setting dir names from BMS Files");
+    tracing::info!("Setting dir names from BMS Files");
     append_name_by_bms(root_dir).await?;
 
     // Step 3: Convert WAV -> FLAC
-    println!("Parsing Audio... Phase 1: WAV -> FLAC");
+    tracing::info!("Parsing Audio... Phase 1: WAV -> FLAC");
     let flac_preset = AUDIO_PRESET_FLAC.clone();
     let flac_ffmpeg_preset = AUDIO_PRESET_FLAC_FFMPEG.clone();
     bms_folder_transfer_audio(
@@ -211,7 +211,7 @@ pub async fn pack_setup_rawpack_to_hq(pack_dir: &Path, root_dir: &Path) -> Resul
     .await?;
 
     // Step 4: Remove unnecessary media files
-    println!("Removing Unneed Files");
+    tracing::info!("Removing Unneed Files");
     remove_unneed_media_files(root_dir, get_remove_media_rule_oraja()).await?;
 
     Ok(())
@@ -227,10 +227,10 @@ pub async fn pack_update_rawpack_to_hq(
     root_dir: &Path,
     sync_dir: &Path,
 ) -> Result<(), DomainError> {
-    println!("Pack Update RAW -> HQ: {pack_dir:?} -> {root_dir:?} (sync from {sync_dir:?})");
+    tracing::info!("Pack Update RAW -> HQ: {pack_dir:?} -> {root_dir:?} (sync from {sync_dir:?})");
 
     if !pack_dir.is_dir() {
-        println!("Pack dir is not vaild dir.");
+        tracing::info!("Pack dir is not vaild dir.");
         return Err(DomainError::Archive(anyhow::anyhow!(
             "Pack dir is not a valid directory"
         )));
@@ -242,7 +242,7 @@ pub async fn pack_update_rawpack_to_hq(
         )));
     }
     if !sync_dir.is_dir() {
-        println!("Syncing dir is not vaild dir.");
+        tracing::info!("Syncing dir is not vaild dir.");
         return Err(DomainError::Archive(anyhow::anyhow!(
             "Sync dir is not a valid directory"
         )));
@@ -251,15 +251,15 @@ pub async fn pack_update_rawpack_to_hq(
     let cache_dir = root_dir.join("CacheDir");
 
     // Step 1: Unzip packs
-    println!("Unzipping packs from {pack_dir:?} to {root_dir:?}");
+    tracing::info!("Unzipping packs from {pack_dir:?} to {root_dir:?}");
     unzip_numeric_to_bms_folder(pack_dir, &cache_dir, root_dir).await?;
 
     // Step 2: Sync dir names from sync_dir
-    println!("Syncing dir name from {sync_dir:?} to {root_dir:?}");
+    tracing::info!("Syncing dir name from {sync_dir:?} to {root_dir:?}");
     copy_numbered_workdir_names(sync_dir, root_dir).await?;
 
     // Step 3: Convert WAV -> FLAC
-    println!("Parsing Audio... Phase 1: WAV -> FLAC");
+    tracing::info!("Parsing Audio... Phase 1: WAV -> FLAC");
     let flac_preset = AUDIO_PRESET_FLAC.clone();
     let flac_ffmpeg_preset = AUDIO_PRESET_FLAC_FFMPEG.clone();
     bms_folder_transfer_audio(
@@ -276,15 +276,15 @@ pub async fn pack_update_rawpack_to_hq(
     .await?;
 
     // Step 4: Remove unnecessary media files
-    println!("Removing Unneed Files");
+    tracing::info!("Removing Unneed Files");
     remove_unneed_media_files(root_dir, get_remove_media_rule_oraja()).await?;
 
     // Step 5: Soft sync from root_dir into sync_dir
-    println!("Syncing dir files from {root_dir:?} to {sync_dir:?}");
+    tracing::info!("Syncing dir files from {root_dir:?} to {sync_dir:?}");
     sync_folder(root_dir, sync_dir, &SYNC_PRESET_FOR_APPEND, 8).await?;
 
     // Step 6: Remove empty folders
-    println!("Removing empty folder in {root_dir:?}");
+    tracing::info!("Removing empty folder in {root_dir:?}");
     remove_empty_dirs(root_dir).await?;
 
     Ok(())

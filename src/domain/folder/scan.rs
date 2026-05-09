@@ -30,7 +30,7 @@ pub async fn scan_folder_similar_folders(
         dir_names.push(name);
     }
 
-    println!("当前目录下有{}个文件夹。", dir_names.len());
+    tracing::info!("当前目录下有{}个文件夹。", dir_names.len());
 
     let mut sorted_names = dir_names.clone();
     sorted_names.sort();
@@ -43,7 +43,7 @@ pub async fn scan_folder_similar_folders(
         if similarity < similarity_trigger {
             continue;
         }
-        println!("发现相似项：{former} <=> {current}");
+        tracing::info!("发现相似项：{former} <=> {current}");
     }
 
     Ok(())

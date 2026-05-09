@@ -56,7 +56,7 @@ pub async fn copy_numbered_workdir_names(
             if src_name.starts_with(numeric_part) {
                 let target_path = dst_path.with_file_name(src_name);
                 if target_path != dst_path {
-                    println!(
+                    tracing::info!(
                         "Renaming {:?} -> {:?}",
                         dst_path.file_name(),
                         target_path.file_name()
@@ -84,11 +84,11 @@ pub async fn remove_zero_sized_media_files(
 
     while let Some(current_dir) = dirs_to_process.pop() {
         if print_dir {
-            println!("Entering dir: {}", current_dir.display());
+            tracing::info!("Entering dir: {}", current_dir.display());
         }
 
         if !current_dir.is_dir() {
-            println!("Not a vaild dir! Aborting...");
+            tracing::info!("Not a vaild dir! Aborting...");
             continue;
         }
 
@@ -114,9 +114,9 @@ pub async fn remove_zero_sized_media_files(
 
                 if is_temp_file {
                     match fs::remove_file(&element_path).await {
-                        Ok(()) => println!(" - Remove temp file: {}", element_path.display()),
+                        Ok(()) => tracing::info!(" - Remove temp file: {}", element_path.display()),
                         Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-                            println!(" x PermissionError!");
+                            tracing::info!(" x PermissionError!");
                         }
                         Err(_) => {}
                     }
@@ -134,10 +134,10 @@ pub async fn remove_zero_sized_media_files(
                     Ok(metadata) if metadata.len() == 0 => {
                         match fs::remove_file(&element_path).await {
                             Ok(()) => {
-                                println!(" - Remove empty file: {}", element_path.display());
+                                tracing::info!(" - Remove empty file: {}", element_path.display());
                             }
                             Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-                                println!(" x PermissionError!");
+                                tracing::info!(" x PermissionError!");
                             }
                             Err(_) => {}
                         }

@@ -18,7 +18,7 @@ use crate::infra::media::video::{
 use crate::infra::media::{TransferOptions, transfer_audio_by_format_in_dir};
 
 /// Available audio transfer modes.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub enum AudioMode {
     /// WAV → FLAC
     WavToFlac = 0,
@@ -49,7 +49,7 @@ impl AudioMode {
 ///
 /// Returns an error if directory operations fail.
 pub async fn transfer_audio(root_dir: &Path, mode: AudioMode) -> Result<(), DomainError> {
-    println!("Audio Transfer for: {root_dir:?}");
+    tracing::info!("Audio Transfer for: {root_dir:?}");
 
     let modes_data: [(&str, Vec<&str>, Vec<AudioPreset>); 4] = [
         (
@@ -91,7 +91,7 @@ pub async fn transfer_audio(root_dir: &Path, mode: AudioMode) -> Result<(), Doma
 
         let bms_dir_name = bms_dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-        println!("Processing: {bms_dir_name}");
+        tracing::info!("Processing: {bms_dir_name}");
 
         let _ = transfer_audio_by_format_in_dir(
             &bms_dir,
@@ -111,7 +111,7 @@ pub async fn transfer_audio(root_dir: &Path, mode: AudioMode) -> Result<(), Doma
 }
 
 /// Available video transfer formats.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
 pub enum VideoFormat {
     /// MP4 → AVI 512x512
     Avi = 0,
@@ -135,7 +135,7 @@ impl VideoFormat {
 ///
 /// Returns an error if directory operations fail.
 pub async fn transfer_video(root_dir: &Path, format: VideoFormat) -> Result<(), DomainError> {
-    println!("Video Transfer for: {root_dir:?}");
+    tracing::info!("Video Transfer for: {root_dir:?}");
 
     let presets: [(&str, VideoPreset); 3] = [
         ("MP4 -> AVI 512x512", VIDEO_PRESET_AVI_512X512.clone()),
@@ -159,7 +159,7 @@ pub async fn transfer_video(root_dir: &Path, format: VideoFormat) -> Result<(), 
 
         let bms_dir_name = bms_dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-        println!("Processing: {bms_dir_name}");
+        tracing::info!("Processing: {bms_dir_name}");
 
         transfer_video_by_format_in_dir(
             &bms_dir,
