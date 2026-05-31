@@ -36,7 +36,15 @@ pub async fn scan_folder_similar_folders(
     sorted_names.sort();
 
     for i in 1..sorted_names.len() {
+        #[expect(
+            clippy::indexing_slicing,
+            reason = "1..len() ensures i-1 and i are in bounds"
+        )]
         let former = &sorted_names[i - 1];
+        #[expect(
+            clippy::indexing_slicing,
+            reason = "1..len() ensures i-1 and i are in bounds"
+        )]
         let current = &sorted_names[i];
 
         let similarity = sequence_matcher_ratio(former, current);
@@ -60,13 +68,19 @@ fn sequence_matcher_ratio(a: &str, b: &str) -> f64 {
     }
     let total = a_chars.len() + b_chars.len();
     let matches = find_longest_match(&a_chars, &b_chars);
-    #[expect(clippy::cast_precision_loss)]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "similarity ratio as f64 is not precision-critical"
+    )]
     {
         (2 * matches) as f64 / total as f64
     }
 }
 
-#[expect(clippy::similar_names)]
+#[expect(
+    clippy::similar_names,
+    reason = "sequence matching algorithm uses many indexed variables"
+)]
 fn find_longest_match(a: &[char], b: &[char]) -> usize {
     let mut best_len = 0;
     let mut best_ai = 0;
@@ -75,7 +89,10 @@ fn find_longest_match(a: &[char], b: &[char]) -> usize {
     for ai in 0..a.len() {
         for bi in 0..b.len() {
             let mut k = 0;
-            while ai + k < a.len() && bi + k < b.len() && a[ai + k] == b[bi + k] {
+            while let Some((ac, bc)) = a.get(ai + k).zip(b.get(bi + k)) {
+                if ac != bc {
+                    break;
+                }
                 k += 1;
             }
             if k > best_len {
@@ -90,8 +107,14 @@ fn find_longest_match(a: &[char], b: &[char]) -> usize {
         return 0;
     }
 
-    let left_matches = find_longest_match(&a[..best_ai], &b[..best_bi]);
-    let right_matches = find_longest_match(&a[best_ai + best_len..], &b[best_bi + best_len..]);
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "best_ai <= a.len(), best_bi <= b.len(), best_ai + best_len <= a.len(), best_bi + best_len <= b.len()"
+    )]
+    let (left_matches, right_matches) = (
+        find_longest_match(&a[..best_ai], &b[..best_bi]),
+        find_longest_match(&a[best_ai + best_len..], &b[best_bi + best_len..]),
+    );
 
     best_len + left_matches + right_matches
 }

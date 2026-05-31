@@ -71,7 +71,10 @@ pub async fn bms_dir_similarity(dir_path_a: &Path, dir_path_b: &Path) -> f64 {
         return 0.0;
     }
 
-    #[expect(clippy::cast_precision_loss)]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "similarity ratio as f64 is not precision-critical"
+    )]
     let intersection_ratio = intersection.len() as f64 / min_media_count as f64;
     intersection_ratio
 }

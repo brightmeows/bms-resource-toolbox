@@ -11,11 +11,11 @@ use bms_res_tb_infra::media::audio::{
     AUDIO_PRESET_FLAC, AUDIO_PRESET_FLAC_FFMPEG, AUDIO_PRESET_OGG_Q10, AUDIO_PRESET_WAV_FFMPEG,
     AUDIO_PRESET_WAV_FROM_FLAC, AudioPreset,
 };
+use bms_res_tb_infra::media::convert::{TransferOptions, transfer_audio_by_format_in_dir};
 use bms_res_tb_infra::media::video::{
     VIDEO_PRESET_AVI_512X512, VIDEO_PRESET_MPEG1VIDEO_512X512, VIDEO_PRESET_WMV2_512X512,
     VideoPreset, transfer_video_by_format_in_dir,
 };
-use bms_res_tb_infra::media::{TransferOptions, transfer_audio_by_format_in_dir};
 
 /// Available audio transfer modes.
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
@@ -78,6 +78,10 @@ pub async fn transfer_audio(root_dir: &Path, mode: AudioMode) -> Result<(), Doma
     ];
 
     let idx = mode as usize;
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "idx is from AudioMode enum, modes_data.len() == 4"
+    )]
     let (_, exts, presets) = &modes_data[idx];
     let combined_exts: Vec<&str> = exts.clone();
     let combined_presets: Vec<AudioPreset> = presets.clone();
@@ -147,6 +151,10 @@ pub async fn transfer_video(root_dir: &Path, format: VideoFormat) -> Result<(), 
     ];
 
     let idx = format as usize;
+    #[expect(
+        clippy::indexing_slicing,
+        reason = "idx is from VideoFormat enum, presets.len() == 3"
+    )]
     let preset = presets[idx].1.clone();
 
     // Process each work directory

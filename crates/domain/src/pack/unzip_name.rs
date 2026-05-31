@@ -58,7 +58,10 @@ async fn get_archive_files(pack_dir: &Path) -> Vec<String> {
 
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-            #[expect(clippy::case_sensitive_file_extension_comparisons)]
+            #[expect(
+                clippy::case_sensitive_file_extension_comparisons,
+                reason = "ZIP extension is lowercase .zip after normalization"
+            )]
             if name.ends_with(".zip") || name.ends_with(".7z") || name.ends_with(".rar") {
                 archive_names.push(name.to_string());
             }

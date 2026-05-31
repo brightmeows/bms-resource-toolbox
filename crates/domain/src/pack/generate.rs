@@ -13,16 +13,13 @@ use crate::folder::rename::append_name_by_bms;
 use crate::sync::{SYNC_PRESET_FOR_APPEND, sync_folder};
 use bms_res_tb_infra::fs::pack_move::is_dir_having_file;
 use bms_res_tb_infra::fs::walk::remove_empty_dirs;
+use bms_res_tb_infra::media::audio::{
+    AUDIO_PRESET_FLAC, AUDIO_PRESET_FLAC_FFMPEG, AUDIO_PRESET_OGG_FFMPEG, AUDIO_PRESET_OGG_Q10,
+};
+use bms_res_tb_infra::media::convert::{TransferOptions, transfer_audio_by_format_in_dir};
 use bms_res_tb_infra::media::video::{
     VIDEO_PRESET_AVI_512X512, VIDEO_PRESET_MPEG1VIDEO_512X512, VIDEO_PRESET_WMV2_512X512,
     transfer_video_by_format_in_dir,
-};
-use bms_res_tb_infra::media::{
-    TransferOptions,
-    audio::{
-        AUDIO_PRESET_FLAC, AUDIO_PRESET_FLAC_FFMPEG, AUDIO_PRESET_OGG_FFMPEG, AUDIO_PRESET_OGG_Q10,
-    },
-    transfer_audio_by_format_in_dir,
 };
 use std::path::Path;
 

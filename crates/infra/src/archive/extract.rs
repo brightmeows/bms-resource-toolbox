@@ -43,6 +43,10 @@ pub async fn extract_archive(archive_path: &Path, output_dir: &Path) -> anyhow::
     Ok(())
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "AGENTS.md: spawn_blocking 闭包内可用 std::fs"
+)]
 fn extract_zip(file: std::fs::File, output_dir: &Path) -> Result<(), std::io::Error> {
     use zip::ZipArchive;
 

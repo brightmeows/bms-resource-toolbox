@@ -34,7 +34,10 @@ async fn execute_shell_command_with_stderr(
 }
 
 /// Options for controlling audio transfer behavior.
-#[expect(clippy::struct_excessive_bools)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "conversion options have many boolean toggles"
+)]
 pub struct TransferOptions {
     /// Remove the original file after successful conversion.
     pub remove_origin_on_success: bool,
@@ -90,7 +93,10 @@ fn spawn_conversion_task(
     tokio::spawn(async move {
         let stem = input.file_stem().unwrap_or_default().to_string_lossy();
         let output_ext = &preset.output_format;
-        let output = input.parent().unwrap().join(format!("{stem}.{output_ext}"));
+        let output = input
+            .parent()
+            .expect("file path should have parent")
+            .join(format!("{stem}.{output_ext}"));
 
         let cmd_str = get_audio_process_cmd(&input, &output, &preset);
         let (result, cmd_stdout) = if cmd_str.is_empty() {
@@ -158,7 +164,10 @@ type HandleEntry = (tokio::task::JoinHandle<TaskResult>, bool);
 ///
 /// May panic if a spawned task panics, which propagates through
 /// the `JoinHandle`.
-#[expect(clippy::too_many_lines)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "audio conversion with preset fallback and concurrent task management"
+)]
 pub async fn transfer_audio_by_format_in_dir(
     dir: &Path,
     input_exts: &[&str],
@@ -195,10 +204,16 @@ pub async fn transfer_audio_by_format_in_dir(
             task_queue.push_front((input, preset_idx));
             break;
         }
-        let preset = presets[preset_idx].clone();
+        let preset = presets
+            .get(preset_idx)
+            .expect("preset_idx < presets.len()")
+            .clone();
         let stem = input.file_stem().unwrap_or_default().to_string_lossy();
         let output_ext = &preset.output_format;
-        let output = input.parent().unwrap().join(format!("{stem}.{output_ext}"));
+        let output = input
+            .parent()
+            .expect("file path should have parent")
+            .join(format!("{stem}.{output_ext}"));
 
         if should_skip_output(&output, options.remove_existing_target_file).await {
             continue;
@@ -280,10 +295,16 @@ pub async fn transfer_audio_by_format_in_dir(
 
         while new_handles.len() < cpu_count {
             if let Some((input, preset_idx)) = task_queue.pop_front() {
-                let preset = presets[preset_idx].clone();
+                let preset = presets
+                    .get(preset_idx)
+                    .expect("preset_idx < presets.len()")
+                    .clone();
                 let stem = input.file_stem().unwrap_or_default().to_string_lossy();
                 let output_ext = &preset.output_format;
-                let output = input.parent().unwrap().join(format!("{stem}.{output_ext}"));
+                let output = input
+                    .parent()
+                    .expect("file path should have parent")
+                    .join(format!("{stem}.{output_ext}"));
 
                 if should_skip_output(&output, options.remove_existing_target_file).await {
                     continue;

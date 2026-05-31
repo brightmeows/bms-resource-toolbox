@@ -275,7 +275,7 @@ async fn set_single_folder_name_by_bms(
             return Ok(false);
         }
 
-        let inner_path = &elements[0].path();
+        let inner_path = elements.first().expect("len == 1").path();
         if !inner_path.is_dir() {
             tracing::info!(" - Folder has only a file: {:?}", inner_path.file_name());
             return Ok(false);
@@ -283,7 +283,7 @@ async fn set_single_folder_name_by_bms(
 
         tracing::info!(" - Moving out files...");
         move_elements_across_dir(
-            inner_path,
+            &inner_path,
             work_dir,
             MoveOptions::default(),
             &ReplaceOptions::default(),
@@ -292,7 +292,7 @@ async fn set_single_folder_name_by_bms(
         info = get_dir_bms_info(work_dir).await;
     }
 
-    let info = info.unwrap();
+    let info = info.expect("while loop ensured info is Some");
     let parent_dir = work_dir.parent().unwrap_or(work_dir);
 
     if info.title.is_empty() && info.artist.is_empty() {
@@ -381,7 +381,7 @@ pub async fn undo_set_name(root_dir: &Path) -> Result<(), DomainError> {
         let dir_name = dir_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         let parts: Vec<&str> = dir_name.splitn(2, ' ').collect();
-        let new_dir_name = parts[0];
+        let new_dir_name = parts.first().copied().unwrap_or(dir_name);
 
         if dir_name == new_dir_name {
             continue;

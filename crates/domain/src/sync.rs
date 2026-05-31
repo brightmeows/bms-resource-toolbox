@@ -22,7 +22,10 @@ pub enum SoftSyncExec {
 /// whether extra files in the destination are removed, and whether identical source files
 /// are deleted after syncing.
 #[derive(Debug, Clone)]
-#[expect(clippy::struct_excessive_bools)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "SoftSyncPreset has many boolean toggles for comparison criteria"
+)]
 pub struct SoftSyncPreset {
     /// File extensions (without dot) allowed for syncing.
     pub allow_src_exts: Vec<String>,
@@ -175,7 +178,7 @@ async fn process_src_file(
     preset: &SoftSyncPreset,
     sem: Arc<Semaphore>,
 ) -> Result<SyncTaskResult, std::io::Error> {
-    let _permit = sem.acquire().await.unwrap();
+    let _permit = sem.acquire().await.expect("semaphore should not be closed");
     let dst_path = dst_dir.join(src_path.file_name().unwrap_or_default());
     let ext = crate::util::get_ext(&src_path);
 
@@ -213,12 +216,15 @@ async fn process_src_file(
 
     if preset.check_file_size && is_same_file && dst_file_exists {
         let src_size = fs::metadata(&src_path).await?.len();
-        let dst_size = dst_metadata.as_ref().unwrap().len();
+        let dst_size = dst_metadata.as_ref().expect("dst file should exist").len();
         is_same_file = src_size == dst_size;
     }
     if preset.check_file_mtime && is_same_file && dst_file_exists {
         let src_mtime = fs::metadata(&src_path).await?.modified()?;
-        let dst_mtime = dst_metadata.as_ref().unwrap().modified()?;
+        let dst_mtime = dst_metadata
+            .as_ref()
+            .expect("dst file should exist")
+            .modified()?;
         is_same_file = src_mtime == dst_mtime;
     }
     if preset.check_file_sha512 && is_same_file && dst_file_exists {

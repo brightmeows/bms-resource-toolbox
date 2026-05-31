@@ -30,6 +30,10 @@ pub fn extract_work_name(
     for title in titles {
         let chars: Vec<char> = title.chars().collect();
         for i in 1..=chars.len() {
+            #[expect(
+                clippy::indexing_slicing,
+                reason = "1..=chars.len() ensures i <= chars.len()"
+            )]
             let prefix: String = chars[..i].iter().collect();
             *prefix_counts.entry(prefix).or_insert(0) += 1;
         }
@@ -42,12 +46,18 @@ pub fn extract_work_name(
     let max_count = *prefix_counts.values().max().unwrap_or(&0);
 
     // Find candidates with >= 67% of max count
-    #[expect(clippy::cast_precision_loss)]
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "work name threshold as f64 is not precision-critical"
+    )]
     let threshold = max_count as f64 * 0.67;
     let mut candidates: Vec<(String, usize)> = prefix_counts
         .iter()
         .filter(|&(_, count)| {
-            #[expect(clippy::cast_precision_loss)]
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "sub-work count as f64 is not precision-critical"
+            )]
             {
                 (*count as f64) >= threshold
             }

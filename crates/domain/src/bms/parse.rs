@@ -4,7 +4,10 @@
 //! and extracting metadata like title, artist, and difficulty.
 
 // BMS timing values stored as integers; truncation is intentional.
-#![expect(clippy::cast_possible_truncation)]
+#![expect(
+    clippy::cast_possible_truncation,
+    reason = "BMS timing values are integers, truncation is intentional"
+)]
 
 use tokio::fs;
 
@@ -22,7 +25,7 @@ fn parse_fullwidth_number(s: &str) -> Option<f64> {
         .chars()
         .map(|c| {
             if ('\u{FF10}'..='\u{FF19}').contains(&c) {
-                char::from_digit(c as u32 - 0xFF10, 10).unwrap()
+                char::from_digit(c as u32 - 0xFF10, 10).expect("valid fullwidth digit ０-９")
             } else {
                 c
             }

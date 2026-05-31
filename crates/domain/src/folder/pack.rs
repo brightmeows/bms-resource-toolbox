@@ -21,9 +21,12 @@ const RE_JAPANESE_KATAKANA: &str = r"[゠-ヿ]+";
 /// Regular expression for Chinese characters
 const RE_CHINESE_CHARACTER: &str = r"[一-龥]+";
 
-static RE_HIRAGANA: LazyLock<Regex> = LazyLock::new(|| Regex::new(RE_JAPANESE_HIRAGANA).unwrap());
-static RE_KATAKANA: LazyLock<Regex> = LazyLock::new(|| Regex::new(RE_JAPANESE_KATAKANA).unwrap());
-static RE_CHINESE: LazyLock<Regex> = LazyLock::new(|| Regex::new(RE_CHINESE_CHARACTER).unwrap());
+static RE_HIRAGANA: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(RE_JAPANESE_HIRAGANA).expect("valid hiragana regex"));
+static RE_KATAKANA: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(RE_JAPANESE_KATAKANA).expect("valid katakana regex"));
+static RE_CHINESE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(RE_CHINESE_CHARACTER).expect("valid chinese regex"));
 
 fn _check_range(name: &str, start: char, end: char) -> bool {
     name.chars()
@@ -37,7 +40,7 @@ fn find_first_char_rule(name: &str) -> String {
         return "未分类".to_string();
     }
 
-    let first_char = name.chars().next().unwrap();
+    let first_char = name.chars().next().expect("name.is_empty() checked above");
 
     if first_char.is_ascii_digit() {
         return "0-9".to_string();

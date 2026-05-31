@@ -69,6 +69,10 @@ impl PriorityDecoder {
                 if start + length > byte_data.len() {
                     break;
                 }
+                #[expect(
+                    clippy::indexing_slicing,
+                    reason = "bounds checked: start + length <= byte_data.len()"
+                )]
                 let (decoded, _, had_error) = encoding.decode(&byte_data[start..start + length]);
                 if !had_error && !decoded.is_empty() {
                     return (Some(decoded.into_owned()), length);
@@ -95,12 +99,14 @@ impl PriorityDecoder {
                 Some(s) => result.push_str(&s),
                 None => match errors {
                     "strict" => {
+                        #[expect(
+                            clippy::indexing_slicing,
+                            reason = "position < byte_data.len() by loop invariant"
+                        )]
+                        let error_slice = &byte_data[position..=position];
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::InvalidData,
-                            format!(
-                                "Cannot decode byte sequence: {:02x?}",
-                                &byte_data[position..=position]
-                            ),
+                            format!("Cannot decode byte sequence: {error_slice:02x?}"),
                         ));
                     }
                     "replace" => result.push('\u{FFFD}'),
@@ -116,7 +122,10 @@ impl PriorityDecoder {
 
 /// Get BMS file string with optional forced encoding.
 #[must_use]
-#[expect(clippy::similar_names)]
+#[expect(
+    clippy::similar_names,
+    reason = "encoding table entries have closely related names by nature"
+)]
 pub fn get_bms_file_str(file_bytes: &[u8], encoding: Option<&str>) -> String {
     let encodings: Vec<&str> = if let Some(enc) = encoding {
         let mut list = vec![enc];

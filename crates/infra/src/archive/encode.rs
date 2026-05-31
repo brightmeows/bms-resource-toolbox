@@ -1,4 +1,7 @@
-#[expect(clippy::too_many_lines)]
+#[expect(
+    clippy::too_many_lines,
+    reason = "CP437 encoding table needs one entry per byte"
+)]
 pub(super) fn encode_cp437(name: &str) -> Option<Vec<u8>> {
     let mut bytes = Vec::new();
     for ch in name.chars() {

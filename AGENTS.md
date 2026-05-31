@@ -2,17 +2,13 @@
 
 ## Lint 配置
 
-### 禁止压制（`#[allow]` / `#[expect]`）
+Cargo.toml 和 `clippy.toml` 已包含所有 lint 规则（`dead_code`/`missing_docs`/`unwrap_used`/`indexing_slicing` = deny，`std::fs` 禁用等）。工具链自动强制执行。
 
-- `dead_code`
-- `missing_docs`
-- `clippy::missing_errors_doc`
-- `clippy::missing_panics_doc`
+AGENTS.md 不再重复这些规则。参见 `clippy.toml` 中 `disallowed-methods` 和 `disallowed-macros` 的完整列表。
 
-## 文件系统 API
+### 例外说明
 
-- 全项目禁用 `std::fs`。只用 `tokio::fs`（`use tokio::fs`，调用 `fs::xxx`）
-- 例外：`tokio::task::spawn_blocking` 闭包内可用 `std::fs`。但文件打开须闭包外完成：`tokio::fs::File::open().await?.into_std().await`（tokio 1.52+ `into_std()` 为 async）
+`spawn_blocking` 闭包内可用 `std::fs`，但文件打开须闭包外完成：`tokio::fs::File::open().await?.into_std().await`（tokio 1.52+ `into_std()` 为 async）。该例外已在 `extract.rs` 中以 `#[expect(clippy::disallowed_methods)]` 标注。
 
 ## Crate 结构
 
