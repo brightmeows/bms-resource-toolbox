@@ -243,6 +243,111 @@ pub async fn get_video_size(file_path: &Path) -> Option<(u32, u32)> {
     None
 }
 
+/// Collect video files from a directory matching the given extensions.
+async fn collect_video_files(dir: &Path, input_exts: &[&str]) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    if let Ok(mut entries) = fs::read_dir(dir).await {
+        while let Some(entry) = entries.next_entry().await.unwrap_or(None) {
+            let path = entry.path();
+            if path.is_file()
+                && let Some(ext) = path.extension()
+                && input_exts
+                    .iter()
+                    .any(|e| e.to_lowercase() == ext.to_string_lossy().to_lowercase())
+            {
+                files.push(path);
+            }
+        }
+    }
+    files
+}
+
+/// Convert a single video file by trying each preset in order.
+async fn convert_video_file(
+    file_path: PathBuf,
+    presets: Vec<VideoPreset>,
+    remove_origin_file: bool,
+    remove_existing_target_file: bool,
+) -> anyhow::Result<()> {
+    let mut last_error = false;
+    let mut last_err_msg = String::new();
+
+    for (i, preset) in presets.iter().enumerate() {
+        let output = preset.get_output_file_path(&file_path);
+
+        if file_path == output {
+            break;
+        }
+
+        if output.is_file() {
+            if remove_existing_target_file {
+                let _ = fs::remove_file(&output).await;
+            } else {
+                tracing::info!("File exists: {output:?}");
+                continue;
+            }
+        }
+
+        let cmd_str = preset.get_video_process_cmd(&file_path, &output);
+        tracing::info!("Running: {}", cmd_str);
+
+        let (shell, shell_arg) = if std::env::consts::OS == "windows" {
+            ("cmd", "/C")
+        } else {
+            ("sh", "-c")
+        };
+
+        let result = Command::new(shell)
+            .args([shell_arg, &cmd_str])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await;
+
+        match result {
+            Ok(output_result) if output_result.status.success() => {
+                if remove_origin_file && file_path.is_file() {
+                    let _ = fs::remove_file(&file_path).await;
+                }
+                break;
+            }
+            Ok(output_result) => {
+                let stdout = String::from_utf8_lossy(&output_result.stdout).to_string();
+                let stderr = String::from_utf8_lossy(&output_result.stderr).to_string();
+                if output.is_file() {
+                    let _ = fs::remove_file(&output).await;
+                }
+                if i == presets.len() - 1 {
+                    last_error = true;
+                    last_err_msg = format!(
+                        "Conversion failed\nCmd: {cmd_str}\nStdout: {stdout}\nStderr: {stderr}"
+                    );
+                }
+            }
+            Err(e) => {
+                if output.is_file() {
+                    let _ = fs::remove_file(&output).await;
+                }
+                if i == presets.len() - 1 {
+                    last_error = true;
+                    last_err_msg = format!("Conversion failed: {e}");
+                }
+            }
+        }
+    }
+
+    if last_error {
+        tracing::info!("Has Error!");
+        tracing::info!("{last_err_msg}");
+        Err(anyhow::anyhow!(
+            "All presets failed for {}",
+            file_path.display()
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 /// Transfer video files in directory using presets (with fallback).
 ///
 /// For each file matching `input_exts`, try each preset in order. If conversion
@@ -260,10 +365,6 @@ pub async fn get_video_size(file_path: &Path) -> Option<(u32, u32)> {
 ///
 /// May panic if a spawned task panics, which propagates through
 /// the `JoinHandle`.
-#[expect(
-    clippy::too_many_lines,
-    reason = "video preset definitions with ffmpeg filter_complex strings"
-)]
 pub async fn transfer_video_by_format_in_dir(
     dir: &Path,
     input_exts: &[&str],
@@ -274,20 +375,7 @@ pub async fn transfer_video_by_format_in_dir(
 ) -> anyhow::Result<()> {
     let cpu_count = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
 
-    let mut files: Vec<PathBuf> = Vec::new();
-    if let Ok(mut entries) = fs::read_dir(dir).await {
-        while let Some(entry) = entries.next_entry().await.unwrap_or(None) {
-            let path = entry.path();
-            if path.is_file()
-                && let Some(ext) = path.extension()
-                && input_exts
-                    .iter()
-                    .any(|e| e.to_lowercase() == ext.to_string_lossy().to_lowercase())
-            {
-                files.push(path);
-            }
-        }
-    }
+    let files = collect_video_files(dir, input_exts).await;
 
     tracing::info!("Found {} video files to convert in {:?}", files.len(), dir);
 
@@ -305,7 +393,7 @@ pub async fn transfer_video_by_format_in_dir(
             }
         }
 
-        let presets_for_this_file: Vec<VideoPreset> = if use_prefered {
+        let presets_for_file: Vec<VideoPreset> = if use_prefered {
             if let Some((w, h)) = get_video_size(&file_path).await {
                 let mut preferred = get_prefered_preset_list(w, h);
                 preferred.extend_from_slice(presets);
@@ -316,88 +404,13 @@ pub async fn transfer_video_by_format_in_dir(
         } else {
             presets.to_vec()
         };
-        let presets_clone = presets_for_this_file;
-        let handle = tokio::spawn(async move {
-            let mut last_error = false;
-            let mut last_err_msg = String::new();
 
-            let presets_for_file = presets_clone;
-
-            for (i, preset) in presets_for_file.iter().enumerate() {
-                let output = preset.get_output_file_path(&file_path);
-
-                if file_path == output {
-                    break;
-                }
-
-                if output.is_file() {
-                    if remove_existing_target_file {
-                        let _ = fs::remove_file(&output).await;
-                    } else {
-                        tracing::info!("File exists: {output:?}");
-                        continue;
-                    }
-                }
-
-                let cmd_str = preset.get_video_process_cmd(&file_path, &output);
-                tracing::info!("Running: {}", cmd_str);
-
-                let (shell, shell_arg) = if std::env::consts::OS == "windows" {
-                    ("cmd", "/C")
-                } else {
-                    ("sh", "-c")
-                };
-
-                let result = Command::new(shell)
-                    .args([shell_arg, &cmd_str])
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .output()
-                    .await;
-
-                match result {
-                    Ok(output_result) if output_result.status.success() => {
-                        if remove_origin_file && file_path.is_file() {
-                            let _ = fs::remove_file(&file_path).await;
-                        }
-                        break;
-                    }
-                    Ok(output_result) => {
-                        let stdout = String::from_utf8_lossy(&output_result.stdout).to_string();
-                        let stderr = String::from_utf8_lossy(&output_result.stderr).to_string();
-                        if output.is_file() {
-                            let _ = fs::remove_file(&output).await;
-                        }
-                        if i == presets_for_file.len() - 1 {
-                            last_error = true;
-                            last_err_msg = format!(
-                                "Conversion failed\nCmd: {cmd_str}\nStdout: {stdout}\nStderr: {stderr}"
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        if output.is_file() {
-                            let _ = fs::remove_file(&output).await;
-                        }
-                        if i == presets_for_file.len() - 1 {
-                            last_error = true;
-                            last_err_msg = format!("Conversion failed: {e}");
-                        }
-                    }
-                }
-            }
-
-            if last_error {
-                tracing::info!("Has Error!");
-                tracing::info!("{last_err_msg}");
-                Err(anyhow::anyhow!(
-                    "All presets failed for {}",
-                    file_path.display()
-                ))
-            } else {
-                Ok(())
-            }
-        });
+        let handle = tokio::spawn(convert_video_file(
+            file_path,
+            presets_for_file,
+            remove_origin_file,
+            remove_existing_target_file,
+        ));
         handles.push_back(handle);
     }
 
@@ -489,16 +502,20 @@ mod tests {
         let streams = value.get("streams").and_then(|v| v.as_array()).unwrap();
         for stream in streams {
             if stream.get("codec_type").and_then(|v| v.as_str()) == Some("video") {
-                #[expect(clippy::cast_possible_truncation)]
-                let w = stream
-                    .get("width")
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap() as u32;
-                #[expect(clippy::cast_possible_truncation)]
-                let h = stream
-                    .get("height")
-                    .and_then(serde_json::Value::as_u64)
-                    .unwrap() as u32;
+                let w = u32::try_from(
+                    stream
+                        .get("width")
+                        .and_then(serde_json::Value::as_u64)
+                        .unwrap(),
+                )
+                .unwrap();
+                let h = u32::try_from(
+                    stream
+                        .get("height")
+                        .and_then(serde_json::Value::as_u64)
+                        .unwrap(),
+                )
+                .unwrap();
                 assert_eq!((w, h), (1920, 1080));
                 return;
             }

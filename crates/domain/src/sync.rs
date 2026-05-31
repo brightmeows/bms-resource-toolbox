@@ -16,16 +16,33 @@ pub enum SoftSyncExec {
     Move = 2,
 }
 
+/// Controls which criteria are used to determine if two files are identical.
+#[derive(Debug, Clone)]
+pub struct ComparisonCriteria {
+    /// Whether to compare file sizes to determine if files are identical.
+    pub check_file_size: bool,
+    /// Whether to compare modification timestamps to determine if files are identical.
+    pub check_file_mtime: bool,
+    /// Whether to compare SHA-512 hashes to determine if files are identical.
+    pub check_file_sha512: bool,
+}
+
+impl Default for ComparisonCriteria {
+    fn default() -> Self {
+        Self {
+            check_file_size: true,
+            check_file_mtime: true,
+            check_file_sha512: false,
+        }
+    }
+}
+
 /// Preset configuration for a soft sync operation.
 ///
 /// Controls which files are compared, how equality is determined (size, mtime, SHA-512),
 /// whether extra files in the destination are removed, and whether identical source files
 /// are deleted after syncing.
 #[derive(Debug, Clone)]
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "SoftSyncPreset has many boolean toggles for comparison criteria"
-)]
 pub struct SoftSyncPreset {
     /// File extensions (without dot) allowed for syncing.
     pub allow_src_exts: Vec<String>,
@@ -37,12 +54,8 @@ pub struct SoftSyncPreset {
     pub no_activate_ext_bound_pairs: Vec<(Vec<String>, Vec<String>)>,
     /// Whether to remove files in the destination that do not exist in the source.
     pub remove_dst_extra_files: bool,
-    /// Whether to compare file sizes to determine if files are identical.
-    pub check_file_size: bool,
-    /// Whether to compare modification timestamps to determine if files are identical.
-    pub check_file_mtime: bool,
-    /// Whether to compare SHA-512 hashes to determine if files are identical.
-    pub check_file_sha512: bool,
+    /// Criteria for determining if two files are identical.
+    pub criteria: ComparisonCriteria,
     /// Whether to remove source files that are identical to their destination counterpart.
     pub remove_src_same_files: bool,
     /// Execution mode for this sync operation.
@@ -63,9 +76,7 @@ impl SoftSyncPreset {
             allow_other_exts: true,
             no_activate_ext_bound_pairs: Vec::new(),
             remove_dst_extra_files: true,
-            check_file_size: true,
-            check_file_mtime: true,
-            check_file_sha512: false,
+            criteria: ComparisonCriteria::default(),
             remove_src_same_files: false,
             exec: SoftSyncExec::Copy,
         }
@@ -136,9 +147,11 @@ async fn sync_move_file(src: &Path, dst: &Path) -> Result<(), std::io::Error> {
 /// Preset for "append" mode sync: checks size and SHA-512, skips mtime,
 /// removes source same files, preserves destination extra files, dry-run only.
 pub static SYNC_PRESET_FOR_APPEND: LazyLock<SoftSyncPreset> = LazyLock::new(|| SoftSyncPreset {
-    check_file_size: true,
-    check_file_mtime: false,
-    check_file_sha512: true,
+    criteria: ComparisonCriteria {
+        check_file_size: true,
+        check_file_mtime: false,
+        check_file_sha512: true,
+    },
     remove_src_same_files: true,
     remove_dst_extra_files: false,
     exec: SoftSyncExec::None,
@@ -214,12 +227,12 @@ async fn process_src_file(
     let dst_file_exists = dst_metadata.as_ref().is_ok_and(std::fs::Metadata::is_file);
     let mut is_same_file = dst_file_exists;
 
-    if preset.check_file_size && is_same_file && dst_file_exists {
+    if preset.criteria.check_file_size && is_same_file && dst_file_exists {
         let src_size = fs::metadata(&src_path).await?.len();
         let dst_size = dst_metadata.as_ref().expect("dst file should exist").len();
         is_same_file = src_size == dst_size;
     }
-    if preset.check_file_mtime && is_same_file && dst_file_exists {
+    if preset.criteria.check_file_mtime && is_same_file && dst_file_exists {
         let src_mtime = fs::metadata(&src_path).await?.modified()?;
         let dst_mtime = dst_metadata
             .as_ref()
@@ -227,7 +240,7 @@ async fn process_src_file(
             .modified()?;
         is_same_file = src_mtime == dst_mtime;
     }
-    if preset.check_file_sha512 && is_same_file && dst_file_exists {
+    if preset.criteria.check_file_sha512 && is_same_file && dst_file_exists {
         is_same_file = get_file_sha512(&src_path).await == get_file_sha512(&dst_path).await;
     }
 
@@ -395,7 +408,7 @@ mod tests {
     async fn test_sync_preset() {
         let preset = SoftSyncPreset::default();
         assert!(preset.allow_other_exts);
-        assert!(preset.check_file_size);
+        assert!(preset.criteria.check_file_size);
     }
 
     #[test]
@@ -432,8 +445,11 @@ mod tests {
         fs::write(src.path().join("f.txt"), "same").await.unwrap();
         fs::write(dst.path().join("f.txt"), "same").await.unwrap();
         let preset = SoftSyncPreset {
-            check_file_sha512: true,
-            check_file_mtime: false,
+            criteria: ComparisonCriteria {
+                check_file_sha512: true,
+                check_file_mtime: false,
+                ..Default::default()
+            },
             exec: SoftSyncExec::Copy,
             ..Default::default()
         };

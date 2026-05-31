@@ -78,14 +78,15 @@ pub async fn get_dir_bms_info(bms_dir_path: &Path) -> Option<BMSInfo> {
         let mut chars: Vec<char> = result.chars().collect();
         if chars.last() == Some(&'-') {
             let dash_count = chars.iter().filter(|&&c| c == '-').count();
-            #[expect(clippy::indexing_slicing, reason = "chars.len() >= 2 checked above")]
-            if dash_count % 2 != 0 && chars.len() >= 2 {
-                let before_dash = chars[chars.len() - 2];
-                if before_dash.is_whitespace() {
-                    chars.pop();
-                    result = chars.into_iter().collect();
-                    result = result.trim().to_string();
-                }
+            if dash_count % 2 != 0
+                && chars.len() >= 2
+                && chars
+                    .get(chars.len() - 2)
+                    .is_some_and(|&c| c.is_whitespace())
+            {
+                chars.pop();
+                result = chars.into_iter().collect();
+                result = result.trim().to_string();
             }
         }
         result

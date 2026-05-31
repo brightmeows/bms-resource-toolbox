@@ -83,8 +83,8 @@ fn sequence_matcher_ratio(a: &str, b: &str) -> f64 {
 )]
 fn find_longest_match(a: &[char], b: &[char]) -> usize {
     let mut best_len = 0;
-    let mut best_ai = 0;
-    let mut best_bi = 0;
+    let mut best_a_idx = 0;
+    let mut best_b_idx = 0;
 
     for ai in 0..a.len() {
         for bi in 0..b.len() {
@@ -97,8 +97,8 @@ fn find_longest_match(a: &[char], b: &[char]) -> usize {
             }
             if k > best_len {
                 best_len = k;
-                best_ai = ai;
-                best_bi = bi;
+                best_a_idx = ai;
+                best_b_idx = bi;
             }
         }
     }
@@ -109,11 +109,11 @@ fn find_longest_match(a: &[char], b: &[char]) -> usize {
 
     #[expect(
         clippy::indexing_slicing,
-        reason = "best_ai <= a.len(), best_bi <= b.len(), best_ai + best_len <= a.len(), best_bi + best_len <= b.len()"
+        reason = "best_a_idx <= a.len(), best_b_idx <= b.len(), best_a_idx + best_len <= a.len(), best_b_idx + best_len <= b.len()"
     )]
     let (left_matches, right_matches) = (
-        find_longest_match(&a[..best_ai], &b[..best_bi]),
-        find_longest_match(&a[best_ai + best_len..], &b[best_bi + best_len..]),
+        find_longest_match(&a[..best_a_idx], &b[..best_b_idx]),
+        find_longest_match(&a[best_a_idx + best_len..], &b[best_b_idx + best_len..]),
     );
 
     best_len + left_matches + right_matches

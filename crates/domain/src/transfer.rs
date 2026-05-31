@@ -11,7 +11,9 @@ use bms_res_tb_infra::media::audio::{
     AUDIO_PRESET_FLAC, AUDIO_PRESET_FLAC_FFMPEG, AUDIO_PRESET_OGG_Q10, AUDIO_PRESET_WAV_FFMPEG,
     AUDIO_PRESET_WAV_FROM_FLAC, AudioPreset,
 };
-use bms_res_tb_infra::media::convert::{TransferOptions, transfer_audio_by_format_in_dir};
+use bms_res_tb_infra::media::convert::{
+    OriginRemoval, TransferOptions, transfer_audio_by_format_in_dir,
+};
 use bms_res_tb_infra::media::video::{
     VIDEO_PRESET_AVI_512X512, VIDEO_PRESET_MPEG1VIDEO_512X512, VIDEO_PRESET_WMV2_512X512,
     VideoPreset, transfer_video_by_format_in_dir,
@@ -102,8 +104,7 @@ pub async fn transfer_audio(root_dir: &Path, mode: AudioMode) -> Result<(), Doma
             &combined_exts,
             &combined_presets,
             &TransferOptions {
-                remove_origin_on_success: true,
-                remove_origin_on_failed: false,
+                origin_removal: OriginRemoval::OnSuccess,
                 remove_existing_target_file: true,
                 stop_on_error: true,
             },

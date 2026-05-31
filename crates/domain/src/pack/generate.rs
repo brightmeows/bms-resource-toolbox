@@ -16,7 +16,9 @@ use bms_res_tb_infra::fs::walk::remove_empty_dirs;
 use bms_res_tb_infra::media::audio::{
     AUDIO_PRESET_FLAC, AUDIO_PRESET_FLAC_FFMPEG, AUDIO_PRESET_OGG_FFMPEG, AUDIO_PRESET_OGG_Q10,
 };
-use bms_res_tb_infra::media::convert::{TransferOptions, transfer_audio_by_format_in_dir};
+use bms_res_tb_infra::media::convert::{
+    OriginRemoval, TransferOptions, transfer_audio_by_format_in_dir,
+};
 use bms_res_tb_infra::media::video::{
     VIDEO_PRESET_AVI_512X512, VIDEO_PRESET_MPEG1VIDEO_512X512, VIDEO_PRESET_WMV2_512X512,
     transfer_video_by_format_in_dir,
@@ -99,8 +101,7 @@ pub async fn pack_raw_to_hq(root_dir: &Path) -> Result<(), DomainError> {
         &["wav"],
         &[flac_preset, flac_ffmpeg_preset],
         &TransferOptions {
-            remove_origin_on_success: true,
-            remove_origin_on_failed: true,
+            origin_removal: OriginRemoval::Always,
             remove_existing_target_file: true,
             stop_on_error: false,
         },
@@ -134,8 +135,7 @@ pub async fn pack_hq_to_lq(root_dir: &Path) -> Result<(), DomainError> {
         &["flac"],
         &[ogg_preset, ogg_ffmpeg],
         &TransferOptions {
-            remove_origin_on_success: true,
-            remove_origin_on_failed: false,
+            origin_removal: OriginRemoval::OnSuccess,
             remove_existing_target_file: true,
             stop_on_error: false,
         },
@@ -199,8 +199,7 @@ pub async fn pack_setup_rawpack_to_hq(pack_dir: &Path, root_dir: &Path) -> Resul
         &["wav"],
         &[flac_preset, flac_ffmpeg_preset],
         &TransferOptions {
-            remove_origin_on_success: true,
-            remove_origin_on_failed: true,
+            origin_removal: OriginRemoval::Always,
             remove_existing_target_file: true,
             stop_on_error: false,
         },
@@ -264,8 +263,7 @@ pub async fn pack_update_rawpack_to_hq(
         &["wav"],
         &[flac_preset, flac_ffmpeg_preset],
         &TransferOptions {
-            remove_origin_on_success: true,
-            remove_origin_on_failed: true,
+            origin_removal: OriginRemoval::Always,
             remove_existing_target_file: true,
             stop_on_error: false,
         },

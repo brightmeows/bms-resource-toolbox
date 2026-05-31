@@ -4,6 +4,7 @@
 //! audio and video files using external tools.
 
 use super::audio::{AudioPreset, get_audio_process_cmd};
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::fs;
@@ -33,16 +34,24 @@ async fn execute_shell_command_with_stderr(
     Ok((success, stdout, stderr))
 }
 
+/// Policy for removing the original file after audio conversion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OriginRemoval {
+    /// Never remove the original file.
+    Never,
+    /// Remove the original file only after successful conversion.
+    #[default]
+    OnSuccess,
+    /// Remove the original file only when conversion fails.
+    OnFailure,
+    /// Always remove the original file (on success or failure).
+    Always,
+}
+
 /// Options for controlling audio transfer behavior.
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "conversion options have many boolean toggles"
-)]
 pub struct TransferOptions {
-    /// Remove the original file after successful conversion.
-    pub remove_origin_on_success: bool,
-    /// Remove the original file when conversion fails.
-    pub remove_origin_on_failed: bool,
+    /// Policy for removing the original file.
+    pub origin_removal: OriginRemoval,
     /// Remove existing target files before conversion.
     pub remove_existing_target_file: bool,
     /// Stop processing on the first error.
@@ -147,12 +156,155 @@ async fn should_skip_output(output: &Path, remove_existing: bool) -> bool {
     remove_existing_target(output, remove_existing).await;
     false
 }
+
 type HandleEntry = (tokio::task::JoinHandle<TaskResult>, bool);
+
+/// Spawn conversion tasks from the queue until the handle list reaches capacity.
+async fn spawn_tasks_until_capacity(
+    task_queue: &mut VecDeque<(PathBuf, usize)>,
+    handles: &mut Vec<HandleEntry>,
+    presets: &[AudioPreset],
+    options: &TransferOptions,
+    capacity: usize,
+) {
+    while handles.len() < capacity {
+        let Some((input, preset_idx)) = task_queue.pop_front() else {
+            break;
+        };
+        let preset = presets
+            .get(preset_idx)
+            .expect("preset_idx < presets.len()")
+            .clone();
+        let stem = input.file_stem().unwrap_or_default().to_string_lossy();
+        let output_ext = &preset.output_format;
+        let output = input
+            .parent()
+            .expect("file path should have parent")
+            .join(format!("{stem}.{output_ext}"));
+
+        if should_skip_output(&output, options.remove_existing_target_file).await {
+            continue;
+        }
+
+        let handle = spawn_conversion_task(input, preset_idx, preset, presets.to_vec());
+        handles.push((handle, true));
+    }
+}
+
+/// Collect fallback candidates from completed conversion tasks.
+///
+/// Drains `handles`, separating unfinished tasks into the returned vector
+/// and producing a list of failed (input, `preset_idx`) pairs to retry.
+async fn collect_fallback_candidates(
+    handles: &mut Vec<HandleEntry>,
+    options: &TransferOptions,
+) -> (
+    Vec<HandleEntry>,
+    Vec<(PathBuf, usize)>,
+    String,
+    String,
+    String,
+) {
+    let old_handles = std::mem::take(handles);
+    let mut new_handles = Vec::new();
+    let mut switch_next_list = Vec::new();
+    let mut err_file_path = String::new();
+    let mut err_stderr = String::new();
+    let mut err_stdout = String::new();
+
+    for (handle, is_process) in old_handles {
+        if !is_process {
+            new_handles.push((handle, false));
+            continue;
+        }
+        if !handle.is_finished() {
+            new_handles.push((handle, true));
+            continue;
+        }
+        let result = handle.await;
+        if let Ok((input, preset_idx, res, _presets_vec, cmd_stdout)) = result {
+            match res {
+                Ok(_stderr_msg) => {
+                    if matches!(
+                        options.origin_removal,
+                        OriginRemoval::OnSuccess | OriginRemoval::Always
+                    ) && input.is_file()
+                        && let Err(e) = fs::remove_file(&input).await
+                    {
+                        tracing::info!("Failed to remove origin file {input:?}: {e}");
+                    }
+                }
+                Err(e) => {
+                    let stderr_str = e.to_string();
+                    tracing::info!("Conversion failed for {input:?}: {e}");
+                    switch_next_list.push((input.clone(), preset_idx));
+                    err_file_path = input.to_string_lossy().to_string();
+                    err_stderr = stderr_str;
+                    err_stdout = cmd_stdout;
+                }
+            }
+        }
+    }
+
+    (
+        new_handles,
+        switch_next_list,
+        err_file_path,
+        err_stderr,
+        err_stdout,
+    )
+}
+
+/// Process fallback entries: push retries to the task queue or mark errors.
+///
+/// Returns `Some(anyhow::Error)` if `stop_on_error` is set (caller should return early).
+async fn process_fallback_list(
+    switch_next_list: Vec<(PathBuf, usize)>,
+    task_queue: &mut VecDeque<(PathBuf, usize)>,
+    presets: &[AudioPreset],
+    options: &TransferOptions,
+    has_error: &mut bool,
+    fallback_file_names: &mut Vec<(String, usize)>,
+    err_stderr: &str,
+) -> Option<anyhow::Error> {
+    for (input, preset_idx) in switch_next_list {
+        let next_idx = preset_idx + 1;
+        if next_idx >= presets.len() {
+            *has_error = true;
+            if matches!(
+                options.origin_removal,
+                OriginRemoval::OnFailure | OriginRemoval::Always
+            ) && input.is_file()
+                && let Err(e) = fs::remove_file(&input).await
+            {
+                tracing::info!("Failed to remove failed origin file {input:?}: {e}");
+            }
+            if options.stop_on_error {
+                return Some(anyhow::anyhow!(
+                    "Conversion failed for {}: {err_stderr}",
+                    input.display(),
+                ));
+            }
+            continue;
+        }
+        fallback_file_names.push((
+            input
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+            next_idx,
+        ));
+        task_queue.push_back((input, next_idx));
+    }
+    None
+}
+
 /// Transfer audio files in a directory using format presets with fallback.
 ///
 /// Supports preset fallback: when first preset fails, tries next one.
-/// Unlimited fallback levels via task queue. Handles `remove_origin_on_success`
-/// and `remove_origin_on_failed`. Uses bounded concurrency based on disk type.
+/// Unlimited fallback levels via task queue. Handles `OriginRemoval` policy.
+/// Uses bounded concurrency based on disk type.
 /// Captures stderr on failure and prints fallback statistics.
 ///
 /// # Errors
@@ -164,10 +316,6 @@ type HandleEntry = (tokio::task::JoinHandle<TaskResult>, bool);
 ///
 /// May panic if a spawned task panics, which propagates through
 /// the `JoinHandle`.
-#[expect(
-    clippy::too_many_lines,
-    reason = "audio conversion with preset fallback and concurrent task management"
-)]
 pub async fn transfer_audio_by_format_in_dir(
     dir: &Path,
     input_exts: &[&str],
@@ -190,8 +338,7 @@ pub async fn transfer_audio_by_format_in_dir(
 
     tracing::info!("Entering dir: {dir:?} Input ext: {input_exts:?}");
 
-    let mut task_queue: std::collections::VecDeque<(PathBuf, usize)> =
-        initial_tasks.into_iter().collect();
+    let mut task_queue: VecDeque<(PathBuf, usize)> = initial_tasks.into_iter().collect();
     let mut handles: Vec<HandleEntry> = Vec::new();
     let mut has_error = false;
     let mut err_file_path = String::new();
@@ -199,137 +346,60 @@ pub async fn transfer_audio_by_format_in_dir(
     let mut err_stderr = String::new();
     let mut fallback_file_names: Vec<(String, usize)> = Vec::new();
 
-    while let Some((input, preset_idx)) = task_queue.pop_front() {
-        if handles.len() >= cpu_count {
-            task_queue.push_front((input, preset_idx));
-            break;
-        }
-        let preset = presets
-            .get(preset_idx)
-            .expect("preset_idx < presets.len()")
-            .clone();
-        let stem = input.file_stem().unwrap_or_default().to_string_lossy();
-        let output_ext = &preset.output_format;
-        let output = input
-            .parent()
-            .expect("file path should have parent")
-            .join(format!("{stem}.{output_ext}"));
-
-        if should_skip_output(&output, options.remove_existing_target_file).await {
-            continue;
-        }
-
-        let handle = spawn_conversion_task(input, preset_idx, preset, presets.to_vec());
-        handles.push((handle, true));
-    }
+    // Fill the initial batch of tasks up to cpu_count
+    spawn_tasks_until_capacity(&mut task_queue, &mut handles, presets, options, cpu_count).await;
 
     loop {
         if handles.is_empty() && task_queue.is_empty() {
             break;
         }
 
-        let mut new_handles: Vec<HandleEntry> = Vec::new();
+        // Process completed handles and collect fallback candidates
+        let (new_handles, switch_next_list, new_err_path, new_err_stderr, new_err_stdout) =
+            collect_fallback_candidates(&mut handles, options).await;
 
-        let mut switch_next_list: Vec<(PathBuf, usize)> = Vec::new();
-
-        for (handle, is_process) in handles {
-            if !is_process {
-                new_handles.push((handle, false));
-                continue;
-            }
-            if !handle.is_finished() {
-                new_handles.push((handle, true));
-                continue;
-            }
-            let result = handle.await;
-            if let Ok((input, preset_idx, res, _presets_vec, cmd_stdout)) = result {
-                match res {
-                    Ok(_stderr_msg) => {
-                        if options.remove_origin_on_success
-                            && input.is_file()
-                            && let Err(e) = fs::remove_file(&input).await
-                        {
-                            tracing::info!("Failed to remove origin file {input:?}: {e}");
-                        }
-                    }
-                    Err(e) => {
-                        let stderr_str = e.to_string();
-                        tracing::info!("Conversion failed for {input:?}: {e}");
-                        switch_next_list.push((input.clone(), preset_idx));
-                        err_file_path = input.to_string_lossy().to_string();
-                        err_stderr = stderr_str;
-                        err_stdout = cmd_stdout;
-                    }
-                }
-            }
+        // Carry forward last error info
+        if !new_err_path.is_empty() {
+            err_file_path = new_err_path;
+            err_stderr = new_err_stderr;
+            err_stdout = new_err_stdout;
         }
 
-        for (input, preset_idx) in switch_next_list {
-            let next_idx = preset_idx + 1;
-            if next_idx >= presets.len() {
-                has_error = true;
-                if options.remove_origin_on_failed
-                    && input.is_file()
-                    && let Err(e) = fs::remove_file(&input).await
-                {
-                    tracing::info!("Failed to remove failed origin file {input:?}: {e}");
-                }
-                if options.stop_on_error {
-                    return Err(anyhow::anyhow!(
-                        "Conversion failed for {}: {err_stderr}",
-                        input.display(),
-                    ));
-                }
-                continue;
-            }
-            fallback_file_names.push((
-                input
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string(),
-                next_idx,
-            ));
-            task_queue.push_back((input, next_idx));
+        // Handle fallbacks: retry with next preset or mark error
+        if let Some(err) = process_fallback_list(
+            switch_next_list,
+            &mut task_queue,
+            presets,
+            options,
+            &mut has_error,
+            &mut fallback_file_names,
+            &err_stderr,
+        )
+        .await
+        {
+            return Err(err);
         }
 
-        while new_handles.len() < cpu_count {
-            if let Some((input, preset_idx)) = task_queue.pop_front() {
-                let preset = presets
-                    .get(preset_idx)
-                    .expect("preset_idx < presets.len()")
-                    .clone();
-                let stem = input.file_stem().unwrap_or_default().to_string_lossy();
-                let output_ext = &preset.output_format;
-                let output = input
-                    .parent()
-                    .expect("file path should have parent")
-                    .join(format!("{stem}.{output_ext}"));
-
-                if should_skip_output(&output, options.remove_existing_target_file).await {
-                    continue;
-                }
-
-                let handle = spawn_conversion_task(input, preset_idx, preset, presets.to_vec());
-                new_handles.push((handle, true));
-            } else {
-                break;
-            }
-        }
-
+        // Replenish handles
         handles = new_handles;
+        spawn_tasks_until_capacity(&mut task_queue, &mut handles, presets, options, cpu_count)
+            .await;
 
         if !handles.is_empty() {
             tokio::time::sleep(std::time::Duration::from_millis(1)).await;
         }
     }
 
+    // Summary reporting
     if has_error {
         tracing::info!("Has Error!");
         tracing::info!("- Err file_path: {err_file_path}");
         tracing::info!("- Err stdout: {err_stdout}");
         tracing::info!("- Err stderr: {err_stderr}");
-        if options.remove_origin_on_failed {
+        if matches!(
+            options.origin_removal,
+            OriginRemoval::OnFailure | OriginRemoval::Always
+        ) {
             tracing::info!("The failed origin file has been removed.");
         }
     }
@@ -368,8 +438,7 @@ mod tests {
             &["wav"],
             std::slice::from_ref(&super::super::audio::AUDIO_PRESET_FLAC),
             &TransferOptions {
-                remove_origin_on_success: true,
-                remove_origin_on_failed: false,
+                origin_removal: OriginRemoval::OnSuccess,
                 remove_existing_target_file: true,
                 stop_on_error: false,
             },
@@ -389,8 +458,7 @@ mod tests {
             &["wav"],
             std::slice::from_ref(&super::super::audio::AUDIO_PRESET_FLAC),
             &TransferOptions {
-                remove_origin_on_success: true,
-                remove_origin_on_failed: false,
+                origin_removal: OriginRemoval::OnSuccess,
                 remove_existing_target_file: true,
                 stop_on_error: false,
             },
