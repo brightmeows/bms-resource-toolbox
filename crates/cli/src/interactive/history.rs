@@ -10,6 +10,7 @@
 
 use std::path::PathBuf;
 
+use crate::interactive::output::print_msg;
 use serde_json;
 
 const HISTORY_FILE: &str = "bms-res-tb/history.log";
@@ -198,7 +199,7 @@ pub fn prompt_with_history(prompt: &str) -> Option<String> {
 fn show_all_history() -> Option<String> {
     let entries = read_history();
     if entries.is_empty() {
-        tracing::info!("暂无历史路径记录");
+        print_msg!("暂无历史路径记录");
         return prompt_with_history("输入路径:");
     }
 

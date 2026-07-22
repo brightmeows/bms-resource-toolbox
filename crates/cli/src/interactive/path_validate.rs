@@ -2,10 +2,28 @@
 //!
 //! Provides semantic checks like `is_root_dir`, `is_work_dir`, etc.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Chart file extensions used for semantic validation.
 const CHART_EXTS: &[&str] = &["bms", "bme", "bml", "pms", "bmson"];
+
+/// Expand `~` at the start of a path to the user's home directory.
+///
+/// Returns the expanded path. If `~` is not at the start or HOME is unset,
+/// returns the original path unchanged.
+#[must_use]
+pub fn expand_tilde(path: &str) -> PathBuf {
+    if !path.starts_with('~') {
+        return PathBuf::from(path);
+    }
+    let Some(home) = std::env::var("HOME").ok() else {
+        return PathBuf::from(path);
+    };
+    if path == "~" || path == "~/" {
+        return PathBuf::from(&home);
+    }
+    PathBuf::from(path.replacen('~', &home, 1))
+}
 
 /// Check if a path exists and is a directory.
 #[expect(dead_code, reason = "Public API for future validation use")]
@@ -135,6 +153,15 @@ pub fn validate_path(path: &Path, semantic: super::types::PathSemantic) -> Resul
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn test_expand_tilde() {
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/user".to_string());
+        assert_eq!(expand_tilde("~"), PathBuf::from(&home));
+        assert_eq!(expand_tilde("~/docs"), PathBuf::from(format!("{home}/docs")));
+        assert_eq!(expand_tilde("/abs/path"), PathBuf::from("/abs/path"));
+        assert_eq!(expand_tilde("rel/path"), PathBuf::from("rel/path"));
+    }
 
     #[test]
     fn test_is_root_dir_valid() {

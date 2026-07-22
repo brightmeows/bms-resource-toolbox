@@ -10,6 +10,7 @@ use bms_res_tb_domain::pack::unzip_numeric;
 use crate::interactive::trait_def::InteractiveCommand;
 use crate::interactive::types::{ParamDef, ParamValue, PathSemantic};
 use crate::interactive::Session;
+use crate::interactive::output::print_msg;
 
 // ── UnzipNumeric ────────────────────────────────────────
 
@@ -96,13 +97,13 @@ impl InteractiveCommand for SetNumber {
                 .with_help_message("输入正整数")
                 .prompt()
             else {
-                tracing::info!("已取消。");
+                print_msg!("已取消。");
                 return Ok(());
             };
 
             let trimmed = num_input.trim().to_string();
             let Ok(num) = trimmed.parse::<i32>() else {
-                tracing::info!("  ⚠ 请输入有效的数字。");
+                print_msg!("  ⚠ 请输入有效的数字。");
                 continue;
             };
 
@@ -127,7 +128,7 @@ fn select_numberable_file(dir: &Path) -> Option<(String, std::path::PathBuf)> {
     let files = get_numberable_files(dir);
 
     if files.is_empty() {
-        tracing::info!("该目录下没有可编号的文件。");
+        print_msg!("该目录下没有可编号的文件。");
         return None;
     }
 

@@ -1,8 +1,9 @@
 //! Directory autocomplete for inquire.
 //!
 //! Provides tab-completion that only shows directories (not files).
+//! Supports `~` expansion for home directory.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// An [`inquire::Autocomplete`] implementation that completes directory paths.
 #[derive(Clone)]
@@ -13,32 +14,41 @@ impl inquire::Autocomplete for DirAutocomplete {
         &mut self,
         input: &str,
     ) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
-        let input_path = Path::new(input);
+        // If input starts with ~, expand it for filesystem operations
+        let (_display_prefix, fs_prefix) = if let Some(rest) = input.strip_prefix('~') {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "~".to_string());
+            let fs_path = format!("{home}{rest}");
+            (1usize, fs_path)
+        } else {
+            (0, input.to_string())
+        };
 
-        let (scan_dir, prefix) = if input.ends_with('/') || input.is_empty() {
-            let dir = if input.is_empty() {
-                Path::new(".")
+        let input_path = Path::new(&fs_prefix);
+
+        let (fs_scan_dir, prefix, is_tilde_mode) = if input.ends_with('/') || fs_prefix.is_empty() {
+            let dir = if fs_prefix.is_empty() {
+                PathBuf::from(".")
             } else {
-                input_path
+                input_path.to_path_buf()
             };
-            (dir.to_path_buf(), String::new())
+            (dir, String::new(), input.starts_with('~'))
         } else if let Some(parent) = input_path.parent() {
             let parent_str = parent.to_string_lossy();
             let parent_path = if parent_str.is_empty() {
-                Path::new(".")
+                PathBuf::from(".")
             } else {
-                parent
+                parent.to_path_buf()
             };
             let last_component = input_path
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
-            (parent_path.to_path_buf(), last_component)
+            (parent_path, last_component, input.starts_with('~'))
         } else {
             return Ok(Vec::new());
         };
 
-        let Ok(mut entries) = std::fs::read_dir(&scan_dir) else {
+        let Ok(mut entries) = std::fs::read_dir(&fs_scan_dir) else {
             return Ok(Vec::new());
         };
 
@@ -58,12 +68,23 @@ impl inquire::Autocomplete for DirAutocomplete {
                 continue;
             }
 
-            let full_path = if scan_dir.to_string_lossy() == "." && !prefix.is_empty() {
+            // Build suggestion path
+            let full_path = if is_tilde_mode {
+                // Replace the home directory part back with ~
+                let home = std::env::var("HOME").unwrap_or_else(|_| "~".to_string());
+                let fs_full = fs_scan_dir.join(&name).to_string_lossy().to_string();
+                let tilde_path = fs_full.replacen(&home, "~", 1);
+                if tilde_path.ends_with('/') {
+                    tilde_path
+                } else {
+                    format!("{tilde_path}/")
+                }
+            } else if fs_scan_dir.to_string_lossy() == "." && !prefix.is_empty() {
                 name.clone()
-            } else if scan_dir.to_string_lossy() == "." {
+            } else if fs_scan_dir.to_string_lossy() == "." {
                 format!("./{name}/")
             } else {
-                let base = scan_dir.join(&name);
+                let base = fs_scan_dir.join(&name);
                 format!("{}/", base.to_string_lossy())
             };
 

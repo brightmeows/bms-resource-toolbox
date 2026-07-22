@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use bms_res_tb_domain::error::DomainError;
 
 use super::history;
+use super::output::print_msg;
 use super::path_validate::validate_path;
 use super::trait_def::InteractiveCommand;
 use super::types::{ParamDef, ParamType, ParamValue, PathSemantic};
@@ -59,14 +60,16 @@ fn prompt_path(prompt: &str, semantic: PathSemantic) -> Option<ParamValue> {
 
         let trimmed = path_str.trim().to_string();
         if trimmed.is_empty() {
-            tracing::info!("路径不能为空，请重新输入。");
+            print_msg!("路径不能为空，请重新输入。");
             continue;
         }
 
-        let path = PathBuf::from(&trimmed);
+        // Expand ~ before validation and use
+        let expanded = super::path_validate::expand_tilde(&trimmed);
+        let path = PathBuf::from(&expanded);
 
         if let Err(msg) = validate_path(&path, semantic) {
-            tracing::info!("  ⚠ {msg}");
+            print_msg!("  ⚠ {msg}");
             continue;
         }
 
@@ -90,25 +93,25 @@ fn prompt_int(prompt: &str, min: Option<i32>, max: Option<i32>) -> Option<ParamV
 
         let trimmed = input.trim().to_string();
         if trimmed.is_empty() {
-            tracing::info!("请输入数字。");
+            print_msg!("请输入数字。");
             continue;
         }
 
         let Ok(num) = trimmed.parse::<i32>() else {
-            tracing::info!("  ⚠ 请输入有效的整数。");
+            print_msg!("  ⚠ 请输入有效的整数。");
             continue;
         };
 
         if let Some(lower) = min
             && num < lower
         {
-            tracing::info!("  ⚠ 数字不能小于 {lower}。");
+            print_msg!("  ⚠ 数字不能小于 {lower}。");
             continue;
         }
         if let Some(upper) = max
             && num > upper
         {
-            tracing::info!("  ⚠ 数字不能大于 {upper}。");
+            print_msg!("  ⚠ 数字不能大于 {upper}。");
             continue;
         }
 
@@ -127,11 +130,11 @@ pub async fn run_interactive_command(
     cmd: &dyn InteractiveCommand,
     session: super::Session,
 ) -> Result<(), DomainError> {
-    tracing::info!("\n── {} ──", cmd.menu_name());
+    print_msg!("\n── {} ──", cmd.menu_name());
 
     let params = cmd.params();
     let Some(args) = prompt_params(&params) else {
-        tracing::info!("已取消。");
+        print_msg!("已取消。");
         return Ok(());
     };
 

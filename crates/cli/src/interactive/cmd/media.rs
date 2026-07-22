@@ -8,6 +8,7 @@ use bms_res_tb_domain::transfer::{self, AudioMode, VideoFormat};
 use crate::interactive::trait_def::InteractiveCommand;
 use crate::interactive::types::{ParamDef, ParamValue};
 use crate::interactive::Session;
+use crate::interactive::output::print_msg;
 
 // ── MediaAudio ──────────────────────────────────────────
 
@@ -37,7 +38,7 @@ impl InteractiveCommand for MediaAudio {
         ];
 
         let Ok(selection) = inquire::Select::new("选择转换模式:", modes.to_vec()).prompt() else {
-            tracing::info!("已取消。");
+            print_msg!("已取消。");
             return Ok(());
         };
 
@@ -70,7 +71,7 @@ impl InteractiveCommand for MediaVideo {
         let format_map = [VideoFormat::Avi, VideoFormat::Wmv2, VideoFormat::Mpeg1];
 
         let Ok(selection) = inquire::Select::new("选择输出格式:", formats.to_vec()).prompt() else {
-            tracing::info!("已取消。");
+            print_msg!("已取消。");
             return Ok(());
         };
 
@@ -102,7 +103,7 @@ impl InteractiveCommand for MediaRemoveUnneed {
         let presets = ["ORAJIA 规则", "WAV 存在时移除 FLAC", "MPG 存在时移除 WMV"];
 
         let Ok(selection) = inquire::Select::new("选择清理预设:", presets.to_vec()).prompt() else {
-            tracing::info!("已取消。");
+            print_msg!("已取消。");
             return Ok(());
         };
 

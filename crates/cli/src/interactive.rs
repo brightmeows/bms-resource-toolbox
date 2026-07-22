@@ -6,6 +6,7 @@ pub mod cmd;
 pub mod history;
 pub mod input;
 pub mod menu;
+pub mod output;
 pub mod path_autocomplete;
 pub mod path_validate;
 pub mod trait_def;

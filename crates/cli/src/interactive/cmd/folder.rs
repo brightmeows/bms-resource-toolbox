@@ -9,6 +9,7 @@ use bms_res_tb_domain::folder::scan;
 use crate::interactive::trait_def::InteractiveCommand;
 use crate::interactive::types::{ParamDef, ParamValue};
 use crate::interactive::Session;
+use crate::interactive::output::print_msg;
 
 // ── SetName ─────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ impl InteractiveCommand for SetName {
 
         let modes = ["标题 [艺术家]", "仅标题", "仅艺术家"];
         let Ok(selection) = inquire::Select::new("选择命名模式:", modes.to_vec()).prompt() else {
-            tracing::info!("已取消。");
+            print_msg!("已取消。");
             return Ok(());
         };
 
@@ -39,7 +40,7 @@ impl InteractiveCommand for SetName {
             "仅标题" => rename::set_title_by_bms(&path).await,
             "仅艺术家" => rename::set_artist_by_bms(&path).await,
             _ => {
-                tracing::info!("已取消。");
+            print_msg!("已取消。");
                 Ok(())
             }
         }
@@ -70,7 +71,7 @@ impl InteractiveCommand for AppendName {
             "追加 [艺术家]",
         ];
         let Ok(selection) = inquire::Select::new("选择追加模式:", modes.to_vec()).prompt() else {
-            tracing::info!("已取消。");
+            print_msg!("已取消。");
             return Ok(());
         };
 
@@ -79,7 +80,7 @@ impl InteractiveCommand for AppendName {
             "追加标题" => rename::append_title_by_bms(&path).await,
             "追加 [艺术家]" => rename::append_artist_name_by_bms(&path).await,
             _ => {
-                tracing::info!("已取消。");
+            print_msg!("已取消。");
                 Ok(())
             }
         }

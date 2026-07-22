@@ -5,6 +5,7 @@ use bms_res_tb_domain::error::DomainError;
 use bms_res_tb_domain::event::folder;
 use bms_res_tb_domain::event::jump::{BMSEvent, jump_to_work_info};
 
+use crate::interactive::output::print_msg;
 use crate::interactive::trait_def::InteractiveCommand;
 use crate::interactive::types::{ParamDef, ParamValue, PathSemantic};
 use crate::interactive::Session;
@@ -20,7 +21,7 @@ impl InteractiveCommand for EventJump {
     }
 
     fn params(&self) -> Vec<ParamDef> {
-        Vec::new() // No params before selection — we prompt interactively
+        Vec::new()
     }
 
     async fn execute(&self, _args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
@@ -30,38 +31,26 @@ impl InteractiveCommand for EventJump {
 
 /// Interactive event jump with event selection and work ID input (with range support).
 fn interactive_event_jump() -> Result<(), DomainError> {
-    // Select event
-    let event_options = [
-        "BOFTT (BOF Team Festival)",
-        "BOF2021",
-        "LetsBMSEdit3",
-    ];
-    let event_map = [
-        BMSEvent::BOFTT,
-        BMSEvent::BOF21,
-        BMSEvent::LetsBMSEdit3,
-    ];
+    let event_options = ["BOFTT (BOF Team Festival)", "BOF2021", "LetsBMSEdit3"];
+    let event_map = [BMSEvent::BOFTT, BMSEvent::BOF21, BMSEvent::LetsBMSEdit3];
 
-    let selection = inquire::Select::new("选择 BMS 活动:", event_options.to_vec()).prompt();
-
-    let Ok(selection) = selection else {
-        tracing::info!("已取消。");
+    let Ok(selection) = inquire::Select::new("选择 BMS 活动:", event_options.to_vec()).prompt() else {
+        print_msg!("已取消。");
         return Ok(());
     };
 
-    let idx = event_options
-        .iter()
-        .position(|o| *o == selection)
-        .unwrap_or(0);
+    let idx = event_options.iter().position(|o| *o == selection).unwrap_or(0);
     #[expect(clippy::indexing_slicing, reason = "idx validated by position() above")]
     let event = event_map[idx];
 
-    tracing::info!("\n  → 已选: {event:?}");
-    tracing::info!("  !: 输入 \"1\": 跳转到作品 ID 1（单个）");
-    tracing::info!("  !: 输入 \"2 5\": 跳转到作品 ID 2、3、4、5（范围）");
-    tracing::info!("  !: 输入 \"2 5 6\": 跳转到作品 ID 2、5、6（列表）");
-    tracing::info!("  !: 按 Enter（空输入）: 跳转到活动列表页");
-    tracing::info!("  !: 按 Ctrl+C 退出\n");
+    print_msg!("");
+    print_msg!("  → 已选: {event:?}");
+    print_msg!("  !: 输入 \"1\": 跳转到作品 ID 1（单个）");
+    print_msg!("  !: 输入 \"2 5\": 跳转到作品 ID 2、3、4、5（范围）");
+    print_msg!("  !: 输入 \"2 5 6\": 跳转到作品 ID 2、5、6（列表）");
+    print_msg!("  !: 按 Enter（空输入）: 跳转到活动列表页");
+    print_msg!("  !: 按 Ctrl+C 退出");
+    print_msg!("");
 
     loop {
         let input = inquire::Text::new("输入作品 ID:")
@@ -71,50 +60,40 @@ fn interactive_event_jump() -> Result<(), DomainError> {
         let input = match input {
             Ok(s) => s.trim().to_string(),
             Err(inquire::InquireError::OperationCanceled) => {
-                tracing::info!("已取消。");
+                print_msg!("已取消。");
                 return Ok(());
             }
             Err(_) => continue,
         };
 
         if input.is_empty() {
-            // Open event list page
             jump_to_work_info(event, &[]);
             continue;
         }
 
         let normalized = input.replace(',', " ");
-        let tokens: Vec<&str> = normalized
-            .split_whitespace()
-            .filter(|t| !t.is_empty())
-            .collect();
+        let tokens: Vec<&str> = normalized.split_whitespace().filter(|t| !t.is_empty()).collect();
 
         if tokens.is_empty() {
             continue;
         }
 
-        // Parse all tokens as numbers
-        let nums: Vec<i32> = tokens
-            .iter()
-            .filter_map(|t| t.parse::<i32>().ok())
-            .collect();
+        let nums: Vec<i32> = tokens.iter().filter_map(|t| t.parse::<i32>().ok()).collect();
 
         if nums.is_empty() {
-            tracing::info!("  ⚠ 请输入有效的数字。");
+            print_msg!("  ⚠ 请输入有效的数字。");
             continue;
         }
 
         let work_ids: Vec<i32> = if let [a, b] = nums.as_slice() {
-            // Range: a..=b
             let start = (*a).min(*b);
             let end = (*a).max(*b);
             (start..=end).collect()
         } else {
-            // List of individual IDs
             nums
         };
 
-        tracing::info!("  打开 {} 个作品页面...", work_ids.len());
+        print_msg!("  打开 {} 个作品页面...", work_ids.len());
         jump_to_work_info(event, &work_ids);
     }
 }
