@@ -15,9 +15,9 @@ pub struct Cli {
     #[arg(short, long, global = true)]
     pub yes: bool,
 
-    /// CLI subcommand to execute
+    /// CLI subcommand to execute (omit to enter interactive menu)
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 /// All available CLI subcommands.

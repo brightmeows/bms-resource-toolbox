@@ -2,6 +2,7 @@
 
 mod cli;
 mod dispatch;
+mod interactive;
 
 use clap::Parser;
 
@@ -13,7 +14,19 @@ async fn main() {
         .init();
 
     let cli = cli::Cli::parse();
-    if let Err(e) = dispatch::dispatch(&cli.command, cli.yes).await {
-        tracing::error!("{e:#}");
+
+    match cli.command {
+        Some(cmd) => {
+            // CLI mode: dispatch to domain functions
+            if let Err(e) = dispatch::dispatch(&cmd, cli.yes).await {
+                tracing::error!("{e:#}");
+            }
+        }
+        None => {
+            // Interactive menu mode
+            if let Err(e) = interactive::menu::run_main_menu(cli.yes).await {
+                tracing::error!("{e:#}");
+            }
+        }
     }
 }
