@@ -1,3 +1,14 @@
 /target
 /original
+
+# Git Worktrees
 /.worktrees
+
+# Agent Config (From OpenSpec)
+/.opencode/**/openspec-*
+/.opencode/**/opsx-*
+/.pi/**/openspec-*
+/.pi/**/opsx-*
+
+# OpenSpec Changes Archive
+/openspec/changes/archive/
