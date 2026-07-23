@@ -480,14 +480,14 @@ mod tests {
     fn test_get_prefered_preset_wide() {
         let presets = get_prefered_preset_list(1920, 1080);
         assert_eq!(presets.len(), 3);
-        assert!(presets[0].output_file_ext == "mpg");
+        assert_eq!(presets[0].output_file_ext, "mpg");
     }
 
     #[test]
     fn test_get_prefered_preset_square() {
         let presets = get_prefered_preset_list(800, 600);
         assert_eq!(presets.len(), 3);
-        assert!(presets[0].output_file_ext == "mpg");
+        assert_eq!(presets[0].output_file_ext, "mpg");
     }
 
     #[test]
