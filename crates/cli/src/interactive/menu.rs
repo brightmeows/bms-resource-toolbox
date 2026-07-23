@@ -10,11 +10,11 @@ use std::collections::HashMap;
 
 use bms_res_tb_domain::error::DomainError;
 
+use super::Session;
 use super::cmd::COMMAND_GROUPS;
 use super::input::run_interactive_command;
 use super::output::print_msg;
 use super::trait_def::InteractiveCommand;
-use super::Session;
 
 /// Build a map from user-facing menu number to command,
 /// and display the grouped menu.
