@@ -1,14 +1,43 @@
 //! Interactive main menu.
 //!
-//! Displays a flat list of all available interactive commands and loops
-//! until the user chooses to exit.
+//! Displays commands grouped by module with tens-boundary numbering
+//! (matching the Python bms-resource-scripts behavior).
+//!
+//! Each module group starts at the next multiple of 10 + 1.
+//! For example: group 1 = 1..N, group 2 = 11..N2, group 3 = 21..N3, etc.
+
+use std::collections::HashMap;
 
 use bms_res_tb_domain::error::DomainError;
 
-use super::Session;
-use super::cmd::ALL_COMMANDS;
+use super::cmd::COMMAND_GROUPS;
 use super::input::run_interactive_command;
 use super::output::print_msg;
+use super::trait_def::InteractiveCommand;
+use super::Session;
+
+/// Build a map from user-facing menu number to command,
+/// and display the grouped menu.
+fn build_menu() -> HashMap<usize, &'static dyn InteractiveCommand> {
+    let mut map: HashMap<usize, &'static dyn InteractiveCommand> = HashMap::new();
+    let mut number = 1_usize;
+
+    for group in COMMAND_GROUPS {
+        print_msg!("");
+        print_msg!("【{}】", group.name);
+
+        for cmd in group.commands {
+            map.insert(number, *cmd);
+            print_msg!(" - {}: {}", number, cmd.menu_name());
+            number += 1;
+        }
+
+        // Jump to next tens boundary (e.g., 4 → 11, 16 → 21)
+        number = ((number - 1) / 10 + 1) * 10 + 1;
+    }
+
+    map
+}
 
 /// Run the interactive main menu loop.
 ///
@@ -18,54 +47,21 @@ use super::output::print_msg;
 pub async fn run_main_menu(yes: bool) -> Result<(), DomainError> {
     let session = Session { yes };
 
+    // Rebuild menu each iteration (static data, same result each time)
     loop {
-        let selection = show_menu();
+        let cmd_map = build_menu();
 
-        match selection {
-            MenuAction::RunCommand(idx) => {
-                if let Some(cmd) = ALL_COMMANDS.get(idx)
-                    && let Err(e) = run_interactive_command(*cmd, session).await
-                {
-                    if let DomainError::Cancelled = e {
-                        print_msg!("已取消。");
-                    } else {
-                        print_msg!("\n  ⚠ 操作遇到错误: {e}");
-                    }
-                }
-            }
-            MenuAction::Exit => {
-                print_msg!("再见！");
-                break;
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// The action selected by the user in the menu.
-enum MenuAction {
-    RunCommand(usize),
-    Exit,
-}
-
-/// Display the menu and return the user's selection.
-fn show_menu() -> MenuAction {
-    loop {
-        print_msg!("\n═══════════ BMS 资源工具箱 ═══════════");
-        for (i, cmd) in ALL_COMMANDS.iter().enumerate() {
-            print_msg!("  {:>2}: {}", i + 1, cmd.menu_name());
-        }
-        print_msg!("   0: 退出");
-        print_msg!("─────────────────────────────────────────");
-
-        let input = inquire::Text::new(&format!("输入编号 (0-{})", ALL_COMMANDS.len()))
-            .with_help_message("按 Enter 确认")
+        print_msg!("");
+        let input = inquire::Text::new("输入要启用的功能的下标")
+            .with_help_message("输入编号，按 Enter 确认")
             .prompt();
 
         let input = match input {
             Ok(s) => s.trim().to_string(),
-            Err(inquire::InquireError::OperationCanceled) => return MenuAction::Exit,
+            Err(inquire::InquireError::OperationCanceled) => {
+                print_msg!("再见！");
+                break;
+            }
             Err(_) => continue,
         };
 
@@ -73,20 +69,24 @@ fn show_menu() -> MenuAction {
             continue;
         }
 
-        if input == "0" {
-            return MenuAction::Exit;
-        }
+        let Ok(num) = input.parse::<usize>() else {
+            print_msg!("请重新输入");
+            continue;
+        };
 
-        if let Ok(num) = input.parse::<usize>()
-            && num >= 1
-            && num <= ALL_COMMANDS.len()
-        {
-            return MenuAction::RunCommand(num - 1);
-        }
+        let Some(cmd) = cmd_map.get(&num).copied() else {
+            print_msg!("请重新输入");
+            continue;
+        };
 
-        print_msg!(
-            "  ⚠ 无效输入，请输入 0 到 {} 之间的编号。",
-            ALL_COMMANDS.len()
-        );
+        if let Err(e) = run_interactive_command(cmd, session).await {
+            if let DomainError::Cancelled = e {
+                print_msg!("已取消。");
+            } else {
+                print_msg!("\n  ⚠ 操作遇到错误: {e}");
+            }
+        }
     }
+
+    Ok(())
 }

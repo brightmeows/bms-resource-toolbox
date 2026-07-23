@@ -10,36 +10,69 @@ pub mod source;
 
 use super::trait_def::InteractiveCommand;
 
-/// All registered interactive commands, in menu display order.
+/// A module group with its display name and commands.
+pub struct CommandGroup {
+    /// Display name shown as group heading.
+    pub name: &'static str,
+    /// Commands in this group.
+    pub commands: &'static [&'static dyn InteractiveCommand],
+}
+
+/// All registered interactive commands, organized in module groups.
 ///
-/// Ordered by module following the Python version's ordering:
-/// Event → Folder → Pack → Media → Source
-pub const ALL_COMMANDS: &[&dyn InteractiveCommand] = &[
-    &event::EventJump,
-    &event::EventCheckFolders,
-    &event::EventCreateFolders,
-    &event::EventGenerateTable,
-    &folder::SetName,
-    &folder::AppendName,
-    &folder::UndoSetName,
-    &folder::CopyNumbered,
-    &folder::ScanSimilar,
-    &folder::RemoveZeroMedia,
-    &pack::Split,
-    &pack::UndoSplit,
-    &pack::MoveIn,
-    &pack::MoveOut,
-    &pack::MergeSameName,
-    &pack::MergeToSiblings,
-    &pack::MergeSplit,
-    &pack::RawHqSetup,
-    &pack::RawHqUpdate,
-    &pack::RawToHq,
-    &pack::HqToLq,
-    &media::MediaAudio,
-    &media::MediaVideo,
-    &media::MediaRemoveUnneed,
-    &source::UnzipNumeric,
-    &source::UnzipNamed,
-    &source::SetNumber,
+/// Ordering follows the Python version's module grouping.
+/// Each group starts numbering at the next tens boundary (1, 11, 21, ...).
+pub const COMMAND_GROUPS: &[CommandGroup] = &[
+    CommandGroup {
+        name: "BMS活动",
+        commands: &[
+            &event::EventJump,
+            &event::EventCheckFolders,
+            &event::EventCreateFolders,
+            &event::EventGenerateTable,
+        ],
+    },
+    CommandGroup {
+        name: "BMS根目录",
+        commands: &[
+            &folder::SetName,
+            &folder::AppendName,
+            &folder::UndoSetName,
+            &folder::CopyNumbered,
+            &folder::ScanSimilar,
+            &folder::RemoveZeroMedia,
+        ],
+    },
+    CommandGroup {
+        name: "BMS大包",
+        commands: &[
+            &pack::Split,
+            &pack::UndoSplit,
+            &pack::MoveIn,
+            &pack::MoveOut,
+            &pack::MergeSameName,
+            &pack::MergeToSiblings,
+            &pack::MergeSplit,
+            &pack::RawHqSetup,
+            &pack::RawHqUpdate,
+            &pack::RawToHq,
+            &pack::HqToLq,
+        ],
+    },
+    CommandGroup {
+        name: "BMS媒体",
+        commands: &[
+            &media::MediaAudio,
+            &media::MediaVideo,
+            &media::MediaRemoveUnneed,
+        ],
+    },
+    CommandGroup {
+        name: "BMS原文件",
+        commands: &[
+            &source::UnzipNumeric,
+            &source::UnzipNamed,
+            &source::SetNumber,
+        ],
+    },
 ];
