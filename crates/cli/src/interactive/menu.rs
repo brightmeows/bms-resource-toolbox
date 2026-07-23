@@ -54,9 +54,7 @@ pub async fn run_main_menu(yes: bool) -> Result<(), DomainError> {
         let cmd_map = build_menu();
 
         print_msg!("");
-        let input = inquire::Text::new("输入要启用的功能的下标")
-            .with_help_message("输入编号或 0 退出，Ctrl+C 也可退出")
-            .prompt();
+        let input = inquire::Text::new("输入要启用的功能的下标").prompt();
 
         let input = match input {
             Ok(s) => s.trim().to_string(),
