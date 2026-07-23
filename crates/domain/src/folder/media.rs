@@ -5,11 +5,10 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use tokio::fs;
-use tokio::sync::Semaphore;
 
 use crate::error::DomainError;
+use crate::parallel::{collect_subdirs, run_parallel};
 
 /// Media file removal rule
 pub type RemoveMediaRule = Vec<(Vec<&'static str>, Vec<&'static str>)>;
@@ -147,51 +146,16 @@ pub async fn remove_unneed_media_files(
 ) -> Result<(), DomainError> {
     tracing::info!("Selected: {rule:?}");
 
-    let mut dirs: Vec<PathBuf> = Vec::new();
-    let mut read_dir = fs::read_dir(root_dir).await?;
-    while let Some(entry) = read_dir.next_entry().await? {
-        if entry.path().is_dir() {
-            dirs.push(entry.path());
-        }
-    }
-
+    let dirs = collect_subdirs(root_dir).await?;
     if dirs.is_empty() {
         return Ok(());
     }
 
-    let cpu_count = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
-    let sem = Arc::new(Semaphore::new(cpu_count));
-    let mut handles = Vec::with_capacity(dirs.len());
-
-    for dir_path in dirs {
-        let sem_clone = sem.clone();
+    run_parallel(dirs, true, move |dir_path| {
         let rule_clone = rule.clone();
-
-        handles.push(tokio::spawn(async move {
-            let _permit = sem_clone.acquire().await.expect("semaphore not closed");
-            workdir_remove_unneed_media_files(&dir_path, &rule_clone)
-                .await
-                .map_err(|e| (dir_path, e))
-        }));
-    }
-
-    let mut errors: Vec<(PathBuf, DomainError)> = Vec::new();
-    for handle in handles {
-        match handle.await {
-            Ok(Ok(())) => {}
-            Ok(Err((dir, e))) => {
-                tracing::info!(" - Dir: {dir:?} Error occured!");
-                errors.push((dir, e));
-            }
-            Err(e) => {
-                return Err(std::io::Error::other(format!("Task join error: {e}")).into());
-            }
-        }
-    }
-
-    if let Some((_, e)) = errors.into_iter().next() {
-        return Err(e);
-    }
+        async move { workdir_remove_unneed_media_files(&dir_path, &rule_clone).await }
+    })
+    .await?;
 
     Ok(())
 }
