@@ -11,15 +11,17 @@ use crate::interactive::output::print_msg;
 use crate::interactive::trait_def::InteractiveCommand;
 use crate::interactive::types::{ParamDef, ParamValue};
 
-// ── SetName ─────────────────────────────────────────────
+// ── Rename ─────────────────────────────────────────────
 
-/// Set folder name by BMS info with mode selection.
-pub struct SetName;
+/// Rename folder by BMS info with mode selection.
+///
+/// Combines "set" and "append" modes into one menu entry.
+pub struct Rename;
 
 #[async_trait]
-impl InteractiveCommand for SetName {
+impl InteractiveCommand for Rename {
     fn menu_name(&self) -> &'static str {
-        "设置文件夹名（按 BMS 信息）"
+        "重命名文件夹（按 BMS 信息）"
     }
 
     fn params(&self) -> Vec<ParamDef> {
@@ -30,10 +32,17 @@ impl InteractiveCommand for SetName {
         let path = args
             .into_iter()
             .next()
-            .expect("SetName: missing path")
+            .expect("Rename: missing path")
             .into_path();
 
-        let modes = ["标题 [艺术家]", "仅标题", "仅艺术家"];
+        let modes = [
+            "设置为「标题 [艺术家]」",
+            "仅设置为标题",
+            "仅设置为艺术家",
+            "追加「标题 [艺术家]」（仅纯数字目录）",
+            "追加标题",
+            "追加 [艺术家]",
+        ];
         let Ok(selection) = inquire::Select::new("选择命名模式:", modes.to_vec()).prompt()
         else {
             print_msg!("已取消。");
@@ -41,51 +50,9 @@ impl InteractiveCommand for SetName {
         };
 
         match selection {
-            "标题 [艺术家]" => rename::set_name_by_bms(&path).await,
-            "仅标题" => rename::set_title_by_bms(&path).await,
-            "仅艺术家" => rename::set_artist_by_bms(&path).await,
-            _ => {
-                print_msg!("已取消。");
-                Ok(())
-            }
-        }
-    }
-}
-
-// ── AppendName ──────────────────────────────────────────
-
-/// Append name by BMS info with mode selection.
-pub struct AppendName;
-
-#[async_trait]
-impl InteractiveCommand for AppendName {
-    fn menu_name(&self) -> &'static str {
-        "追加文件夹名（按 BMS 信息）"
-    }
-
-    fn params(&self) -> Vec<ParamDef> {
-        vec![ParamDef::root_dir("BMS 根目录")]
-    }
-
-    async fn execute(&self, args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
-        let path = args
-            .into_iter()
-            .next()
-            .expect("AppendName: missing path")
-            .into_path();
-
-        let modes = [
-            "追加「标题 [艺术家]」（仅纯数字目录）",
-            "追加标题",
-            "追加 [艺术家]",
-        ];
-        let Ok(selection) = inquire::Select::new("选择追加模式:", modes.to_vec()).prompt()
-        else {
-            print_msg!("已取消。");
-            return Ok(());
-        };
-
-        match selection {
+            "设置为「标题 [艺术家]」" => rename::set_name_by_bms(&path).await,
+            "仅设置为标题" => rename::set_title_by_bms(&path).await,
+            "仅设置为艺术家" => rename::set_artist_by_bms(&path).await,
             "追加「标题 [艺术家]」（仅纯数字目录）" => {
                 rename::append_name_by_bms(&path).await
             }

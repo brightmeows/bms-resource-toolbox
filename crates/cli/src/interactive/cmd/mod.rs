@@ -35,8 +35,7 @@ pub const COMMAND_GROUPS: &[CommandGroup] = &[
     CommandGroup {
         name: "BMS根目录",
         commands: &[
-            &folder::SetName,
-            &folder::AppendName,
+            &folder::Rename,
             &folder::UndoSetName,
             &folder::CopyNumbered,
             &folder::ScanSimilar,
