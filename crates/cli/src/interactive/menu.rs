@@ -36,6 +36,9 @@ fn build_menu() -> HashMap<usize, &'static dyn InteractiveCommand> {
         number = ((number - 1) / 10 + 1) * 10 + 1;
     }
 
+    print_msg!("");
+    print_msg!(" 0: 退出");
+
     map
 }
 
@@ -53,7 +56,7 @@ pub async fn run_main_menu(yes: bool) -> Result<(), DomainError> {
 
         print_msg!("");
         let input = inquire::Text::new("输入要启用的功能的下标")
-            .with_help_message("输入编号，按 Enter 确认")
+            .with_help_message("输入编号或 0 退出，Ctrl+C 也可退出")
             .prompt();
 
         let input = match input {
@@ -67,6 +70,12 @@ pub async fn run_main_menu(yes: bool) -> Result<(), DomainError> {
 
         if input.is_empty() {
             continue;
+        }
+
+        // 0 or Ctrl+C → exit
+        if input == "0" {
+            print_msg!("再见！");
+            break;
         }
 
         let Ok(num) = input.parse::<usize>() else {
