@@ -7,10 +7,10 @@ use bms_res_tb_domain::error::DomainError;
 use bms_res_tb_domain::pack::unzip_name;
 use bms_res_tb_domain::pack::unzip_numeric;
 
-use crate::interactive::trait_def::InteractiveCommand;
-use crate::interactive::types::{ParamDef, ParamValue, PathSemantic};
 use crate::interactive::Session;
 use crate::interactive::output::print_msg;
+use crate::interactive::trait_def::InteractiveCommand;
+use crate::interactive::types::{ParamDef, ParamValue, PathSemantic};
 
 // ── UnzipNumeric ────────────────────────────────────────
 
@@ -33,7 +33,10 @@ impl InteractiveCommand for UnzipNumeric {
     async fn execute(&self, args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
         let mut iter = args.into_iter();
         let pack = iter.next().expect("UnzipNumeric: missing pack").into_path();
-        let cache = iter.next().expect("UnzipNumeric: missing cache").into_path();
+        let cache = iter
+            .next()
+            .expect("UnzipNumeric: missing cache")
+            .into_path();
         let root = iter.next().expect("UnzipNumeric: missing root").into_path();
         unzip_numeric::unzip_numeric_to_bms_folder(&pack, &cache, &root).await
     }
@@ -134,7 +137,9 @@ fn select_numberable_file(dir: &Path) -> Option<(String, std::path::PathBuf)> {
 
     let options: Vec<String> = files.iter().map(|(name, _)| name.clone()).collect();
 
-    let selection = inquire::Select::new("选择要编号的文件:", options).prompt().ok()?;
+    let selection = inquire::Select::new("选择要编号的文件:", options)
+        .prompt()
+        .ok()?;
 
     let idx = files.iter().position(|(name, _)| name == &selection)?;
     Some(files.get(idx)?.clone())
@@ -157,12 +162,19 @@ fn get_numberable_files(dir: &Path) -> Vec<(String, std::path::PathBuf)> {
         let name = entry.file_name().to_string_lossy().to_string();
 
         // Skip already numbered files
-        if name.split_whitespace().next().is_some_and(|s| s.parse::<i32>().is_ok()) {
+        if name
+            .split_whitespace()
+            .next()
+            .is_some_and(|s| s.parse::<i32>().is_ok())
+        {
             continue;
         }
 
         // Skip empty files
-        #[expect(clippy::disallowed_methods, reason = "sync context in interactive prompt")]
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "sync context in interactive prompt"
+        )]
         if std::fs::metadata(&path).map_or(true, |m| m.len() == 0) {
             continue;
         }

@@ -6,10 +6,10 @@ use bms_res_tb_domain::folder::cleanup;
 use bms_res_tb_domain::folder::rename;
 use bms_res_tb_domain::folder::scan;
 
-use crate::interactive::trait_def::InteractiveCommand;
-use crate::interactive::types::{ParamDef, ParamValue};
 use crate::interactive::Session;
 use crate::interactive::output::print_msg;
+use crate::interactive::trait_def::InteractiveCommand;
+use crate::interactive::types::{ParamDef, ParamValue};
 
 // ── SetName ─────────────────────────────────────────────
 
@@ -27,10 +27,15 @@ impl InteractiveCommand for SetName {
     }
 
     async fn execute(&self, args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
-        let path = args.into_iter().next().expect("SetName: missing path").into_path();
+        let path = args
+            .into_iter()
+            .next()
+            .expect("SetName: missing path")
+            .into_path();
 
         let modes = ["标题 [艺术家]", "仅标题", "仅艺术家"];
-        let Ok(selection) = inquire::Select::new("选择命名模式:", modes.to_vec()).prompt() else {
+        let Ok(selection) = inquire::Select::new("选择命名模式:", modes.to_vec()).prompt()
+        else {
             print_msg!("已取消。");
             return Ok(());
         };
@@ -40,7 +45,7 @@ impl InteractiveCommand for SetName {
             "仅标题" => rename::set_title_by_bms(&path).await,
             "仅艺术家" => rename::set_artist_by_bms(&path).await,
             _ => {
-            print_msg!("已取消。");
+                print_msg!("已取消。");
                 Ok(())
             }
         }
@@ -63,24 +68,31 @@ impl InteractiveCommand for AppendName {
     }
 
     async fn execute(&self, args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
-        let path = args.into_iter().next().expect("AppendName: missing path").into_path();
+        let path = args
+            .into_iter()
+            .next()
+            .expect("AppendName: missing path")
+            .into_path();
 
         let modes = [
             "追加「标题 [艺术家]」（仅纯数字目录）",
             "追加标题",
             "追加 [艺术家]",
         ];
-        let Ok(selection) = inquire::Select::new("选择追加模式:", modes.to_vec()).prompt() else {
+        let Ok(selection) = inquire::Select::new("选择追加模式:", modes.to_vec()).prompt()
+        else {
             print_msg!("已取消。");
             return Ok(());
         };
 
         match selection {
-            "追加「标题 [艺术家]」（仅纯数字目录）" => rename::append_name_by_bms(&path).await,
+            "追加「标题 [艺术家]」（仅纯数字目录）" => {
+                rename::append_name_by_bms(&path).await
+            }
             "追加标题" => rename::append_title_by_bms(&path).await,
             "追加 [艺术家]" => rename::append_artist_name_by_bms(&path).await,
             _ => {
-            print_msg!("已取消。");
+                print_msg!("已取消。");
                 Ok(())
             }
         }
@@ -103,7 +115,11 @@ impl InteractiveCommand for UndoSetName {
     }
 
     async fn execute(&self, args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
-        let path = args.into_iter().next().expect("UndoSetName: missing path").into_path();
+        let path = args
+            .into_iter()
+            .next()
+            .expect("UndoSetName: missing path")
+            .into_path();
         rename::undo_set_name(&path).await
     }
 }
@@ -150,7 +166,11 @@ impl InteractiveCommand for ScanSimilar {
     }
 
     async fn execute(&self, args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
-        let path = args.into_iter().next().expect("ScanSimilar: missing path").into_path();
+        let path = args
+            .into_iter()
+            .next()
+            .expect("ScanSimilar: missing path")
+            .into_path();
         scan::scan_folder_similar_folders(&path, 0.7).await
     }
 }
@@ -171,7 +191,11 @@ impl InteractiveCommand for RemoveZeroMedia {
     }
 
     async fn execute(&self, args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
-        let path = args.into_iter().next().expect("RemoveZeroMedia: missing path").into_path();
+        let path = args
+            .into_iter()
+            .next()
+            .expect("RemoveZeroMedia: missing path")
+            .into_path();
         cleanup::remove_zero_sized_media_files(&path, false).await
     }
 }

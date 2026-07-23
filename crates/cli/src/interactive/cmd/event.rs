@@ -5,10 +5,10 @@ use bms_res_tb_domain::error::DomainError;
 use bms_res_tb_domain::event::folder;
 use bms_res_tb_domain::event::jump::{BMSEvent, jump_to_work_info};
 
+use crate::interactive::Session;
 use crate::interactive::output::print_msg;
 use crate::interactive::trait_def::InteractiveCommand;
 use crate::interactive::types::{ParamDef, ParamValue, PathSemantic};
-use crate::interactive::Session;
 
 // ── EventJump ───────────────────────────────────────────
 
@@ -34,12 +34,16 @@ fn interactive_event_jump() -> Result<(), DomainError> {
     let event_options = ["BOFTT (BOF Team Festival)", "BOF2021", "LetsBMSEdit3"];
     let event_map = [BMSEvent::BOFTT, BMSEvent::BOF21, BMSEvent::LetsBMSEdit3];
 
-    let Ok(selection) = inquire::Select::new("选择 BMS 活动:", event_options.to_vec()).prompt() else {
+    let Ok(selection) = inquire::Select::new("选择 BMS 活动:", event_options.to_vec()).prompt()
+    else {
         print_msg!("已取消。");
         return Ok(());
     };
 
-    let idx = event_options.iter().position(|o| *o == selection).unwrap_or(0);
+    let idx = event_options
+        .iter()
+        .position(|o| *o == selection)
+        .unwrap_or(0);
     #[expect(clippy::indexing_slicing, reason = "idx validated by position() above")]
     let event = event_map[idx];
 
@@ -72,13 +76,19 @@ fn interactive_event_jump() -> Result<(), DomainError> {
         }
 
         let normalized = input.replace(',', " ");
-        let tokens: Vec<&str> = normalized.split_whitespace().filter(|t| !t.is_empty()).collect();
+        let tokens: Vec<&str> = normalized
+            .split_whitespace()
+            .filter(|t| !t.is_empty())
+            .collect();
 
         if tokens.is_empty() {
             continue;
         }
 
-        let nums: Vec<i32> = tokens.iter().filter_map(|t| t.parse::<i32>().ok()).collect();
+        let nums: Vec<i32> = tokens
+            .iter()
+            .filter_map(|t| t.parse::<i32>().ok())
+            .collect();
 
         if nums.is_empty() {
             print_msg!("  ⚠ 请输入有效的数字。");
@@ -117,8 +127,14 @@ impl InteractiveCommand for EventCheckFolders {
 
     async fn execute(&self, args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
         let mut iter = args.into_iter();
-        let path = iter.next().expect("EventCheckFolders: missing path arg").into_path();
-        let count = iter.next().expect("EventCheckFolders: missing count arg").into_int();
+        let path = iter
+            .next()
+            .expect("EventCheckFolders: missing path arg")
+            .into_path();
+        let count = iter
+            .next()
+            .expect("EventCheckFolders: missing count arg")
+            .into_int();
         folder::check_num_folder(&path, count);
         Ok(())
     }
@@ -143,8 +159,14 @@ impl InteractiveCommand for EventCreateFolders {
 
     async fn execute(&self, args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
         let mut iter = args.into_iter();
-        let path = iter.next().expect("EventCreateFolders: missing path arg").into_path();
-        let count = iter.next().expect("EventCreateFolders: missing count arg").into_int();
+        let path = iter
+            .next()
+            .expect("EventCreateFolders: missing path arg")
+            .into_path();
+        let count = iter
+            .next()
+            .expect("EventCreateFolders: missing count arg")
+            .into_int();
         folder::create_num_folders(&path, count).await
     }
 }
@@ -165,7 +187,10 @@ impl InteractiveCommand for EventGenerateTable {
 
     async fn execute(&self, args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
         let mut iter = args.into_iter();
-        let path = iter.next().expect("EventGenerateTable: missing path arg").into_path();
+        let path = iter
+            .next()
+            .expect("EventGenerateTable: missing path arg")
+            .into_path();
         folder::generate_work_info_table(&path).await
     }
 }

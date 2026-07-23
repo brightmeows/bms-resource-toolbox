@@ -103,11 +103,7 @@ fn write_history(entries: &[String]) {
             if e.is_empty() {
                 return None;
             }
-            Some(
-                serde_json::to_string(e)
-                    .unwrap_or_else(|_| format!("\"{e}\""))
-                    + "\n",
-            )
+            Some(serde_json::to_string(e).unwrap_or_else(|_| format!("\"{e}\"")) + "\n")
         })
         .collect();
 
@@ -166,7 +162,10 @@ pub fn prompt_with_history(prompt: &str) -> Option<String> {
     }
     options.push("🚪 取消".to_string());
 
-    let Ok(selection) = inquire::Select::new(prompt, options).with_vim_mode(true).prompt() else {
+    let Ok(selection) = inquire::Select::new(prompt, options)
+        .with_vim_mode(true)
+        .prompt()
+    else {
         return None;
     };
 

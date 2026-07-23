@@ -48,10 +48,7 @@ pub struct ParamDef {
     pub description: &'static str,
 }
 
-#[expect(
-    dead_code,
-    reason = "convenience constructors, not all used yet"
-)]
+#[expect(dead_code, reason = "convenience constructors, not all used yet")]
 impl ParamDef {
     /// Create a path parameter with the given semantic and description.
     #[must_use]

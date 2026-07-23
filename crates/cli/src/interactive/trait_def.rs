@@ -3,8 +3,8 @@
 use async_trait::async_trait;
 use bms_res_tb_domain::error::DomainError;
 
-use super::types::{ParamDef, ParamValue};
 use super::Session;
+use super::types::{ParamDef, ParamValue};
 
 /// A command that can be invoked from the interactive menu.
 ///
@@ -26,9 +26,5 @@ pub trait InteractiveCommand: Send + Sync {
     /// # Errors
     ///
     /// Returns [`DomainError`] if the underlying domain operation fails.
-    async fn execute(
-        &self,
-        args: Vec<ParamValue>,
-        session: Session,
-    ) -> Result<(), DomainError>;
+    async fn execute(&self, args: Vec<ParamValue>, session: Session) -> Result<(), DomainError>;
 }

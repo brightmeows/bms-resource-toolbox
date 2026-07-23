@@ -5,10 +5,10 @@
 
 use bms_res_tb_domain::error::DomainError;
 
+use super::Session;
 use super::cmd::ALL_COMMANDS;
 use super::input::run_interactive_command;
 use super::output::print_msg;
-use super::Session;
 
 /// Run the interactive main menu loop.
 ///
@@ -84,6 +84,9 @@ fn show_menu() -> MenuAction {
             return MenuAction::RunCommand(num - 1);
         }
 
-        print_msg!("  ⚠ 无效输入，请输入 0 到 {} 之间的编号。", ALL_COMMANDS.len());
+        print_msg!(
+            "  ⚠ 无效输入，请输入 0 到 {} 之间的编号。",
+            ALL_COMMANDS.len()
+        );
     }
 }

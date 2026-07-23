@@ -5,10 +5,10 @@ use bms_res_tb_domain::error::DomainError;
 use bms_res_tb_domain::folder::pack;
 use bms_res_tb_domain::pack::generate;
 
+use crate::interactive::Session;
 use crate::interactive::input::confirm_or_skip;
 use crate::interactive::trait_def::InteractiveCommand;
 use crate::interactive::types::{ParamDef, ParamValue};
-use crate::interactive::Session;
 
 // ── Split ───────────────────────────────────────────────
 
@@ -48,9 +48,7 @@ impl InteractiveCommand for UndoSplit {
     async fn execute(&self, args: Vec<ParamValue>, session: Session) -> Result<(), DomainError> {
         let mut iter = args.into_iter();
         let path = iter.next().expect("UndoSplit: missing path").into_path();
-        if !session.yes
-            && !confirm_or_skip("撤销首字符拆分", &path.display().to_string())?
-        {
+        if !session.yes && !confirm_or_skip("撤销首字符拆分", &path.display().to_string())? {
             return Ok(());
         }
         pack::undo_split_pack(&path).await
@@ -122,7 +120,10 @@ impl InteractiveCommand for MergeSameName {
 
     async fn execute(&self, args: Vec<ParamValue>, session: Session) -> Result<(), DomainError> {
         let mut iter = args.into_iter();
-        let from = iter.next().expect("MergeSameName: missing from").into_path();
+        let from = iter
+            .next()
+            .expect("MergeSameName: missing from")
+            .into_path();
         let to = iter.next().expect("MergeSameName: missing to").into_path();
         if !session.yes
             && !confirm_or_skip(
@@ -152,10 +153,11 @@ impl InteractiveCommand for MergeToSiblings {
 
     async fn execute(&self, args: Vec<ParamValue>, session: Session) -> Result<(), DomainError> {
         let mut iter = args.into_iter();
-        let path = iter.next().expect("MergeToSiblings: missing path").into_path();
-        if !session.yes
-            && !confirm_or_skip("合并至平级目录", &path.display().to_string())?
-        {
+        let path = iter
+            .next()
+            .expect("MergeToSiblings: missing path")
+            .into_path();
+        if !session.yes && !confirm_or_skip("合并至平级目录", &path.display().to_string())? {
             return Ok(());
         }
         pack::move_works_with_same_name_to_siblings(&path).await

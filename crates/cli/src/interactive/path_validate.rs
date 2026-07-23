@@ -127,10 +127,7 @@ pub fn validate_path(path: &Path, semantic: super::types::PathSemantic) -> Resul
                 return Err(format!("目录不存在: {}", path.display()));
             }
             if !is_work_dir(path) {
-                return Err(format!(
-                    "目录 {} 不包含任何谱面文件",
-                    path.display()
-                ));
+                return Err(format!("目录 {} 不包含任何谱面文件", path.display()));
             }
             Ok(())
         }
@@ -158,7 +155,10 @@ mod tests {
     fn test_expand_tilde() {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/home/user".to_string());
         assert_eq!(expand_tilde("~"), PathBuf::from(&home));
-        assert_eq!(expand_tilde("~/docs"), PathBuf::from(format!("{home}/docs")));
+        assert_eq!(
+            expand_tilde("~/docs"),
+            PathBuf::from(format!("{home}/docs"))
+        );
         assert_eq!(expand_tilde("/abs/path"), PathBuf::from("/abs/path"));
         assert_eq!(expand_tilde("rel/path"), PathBuf::from("rel/path"));
     }
