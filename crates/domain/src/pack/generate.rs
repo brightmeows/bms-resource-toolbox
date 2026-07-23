@@ -24,6 +24,9 @@ use bms_res_tb_infra::media::video::{
     transfer_video_by_format_in_dir,
 };
 use std::path::Path;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 
 async fn bms_folder_transfer_audio(
     root_dir: &Path,
@@ -31,20 +34,55 @@ async fn bms_folder_transfer_audio(
     presets: &[bms_res_tb_infra::media::audio::AudioPreset],
     options: &TransferOptions,
 ) -> Result<(), DomainError> {
+    let mut dirs: Vec<PathBuf> = Vec::new();
     let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
-        let bms_dir_path = entry.path();
-        if !bms_dir_path.is_dir() {
-            continue;
+        if entry.path().is_dir() {
+            dirs.push(entry.path());
         }
-        if let Err(e) =
-            transfer_audio_by_format_in_dir(&bms_dir_path, input_exts, presets, options).await
-        {
-            tracing::info!(" - Dir: {bms_dir_path:?} Error occured!");
-            if options.stop_on_error {
-                return Err(e.into());
+    }
+
+    if dirs.is_empty() {
+        return Ok(());
+    }
+
+    let cpu_count = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
+    let sem = Arc::new(Semaphore::new(cpu_count));
+    let mut handles = Vec::with_capacity(dirs.len());
+
+    for dir_path in dirs {
+        let sem_clone = sem.clone();
+        let exts_owned: Vec<String> = input_exts.iter().map(ToString::to_string).collect();
+        let presets_vec = presets.to_vec();
+        let options_clone = options.clone();
+
+        handles.push(tokio::spawn(async move {
+            let _permit = sem_clone.acquire().await.expect("semaphore not closed");
+            let exts_refs: Vec<&str> = exts_owned.iter().map(String::as_str).collect();
+            transfer_audio_by_format_in_dir(&dir_path, &exts_refs, &presets_vec, &options_clone)
+                .await
+                .map_err(|e| (dir_path, anyhow::anyhow!("{e}")))
+        }));
+    }
+
+    let mut errors: Vec<(PathBuf, anyhow::Error)> = Vec::new();
+    for handle in handles {
+        match handle.await {
+            Ok(Ok(())) => {}
+            Ok(Err((dir, e))) => {
+                tracing::info!(" - Dir: {dir:?} Error occured!");
+                errors.push((dir, e));
+            }
+            Err(e) => {
+                return Err(std::io::Error::other(format!("Task join error: {e}")).into());
             }
         }
+    }
+
+    if options.stop_on_error
+        && let Some((_, e)) = errors.into_iter().next()
+    {
+        return Err(e.into());
     }
 
     Ok(())
@@ -57,25 +95,59 @@ async fn bms_folder_transfer_video(
     remove_origin_file: bool,
     remove_existing_target_file: bool,
 ) -> Result<(), DomainError> {
+    let mut dirs: Vec<PathBuf> = Vec::new();
     let mut read_dir = fs::read_dir(root_dir).await?;
     while let Some(entry) = read_dir.next_entry().await? {
-        let bms_dir_path = entry.path();
-        if !bms_dir_path.is_dir() {
-            continue;
+        if entry.path().is_dir() {
+            dirs.push(entry.path());
         }
-        if let Err(e) = transfer_video_by_format_in_dir(
-            &bms_dir_path,
-            input_exts,
-            presets,
-            remove_origin_file,
-            remove_existing_target_file,
-            false,
-        )
-        .await
-        {
-            tracing::info!("Error occured!");
-            return Err(e.into());
+    }
+
+    if dirs.is_empty() {
+        return Ok(());
+    }
+
+    let cpu_count = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
+    let sem = Arc::new(Semaphore::new(cpu_count));
+    let mut handles = Vec::with_capacity(dirs.len());
+
+    for dir_path in dirs {
+        let sem_clone = sem.clone();
+        let exts_owned: Vec<String> = input_exts.iter().map(ToString::to_string).collect();
+        let presets_vec = presets.to_vec();
+
+        handles.push(tokio::spawn(async move {
+            let _permit = sem_clone.acquire().await.expect("semaphore not closed");
+            let exts_refs: Vec<&str> = exts_owned.iter().map(String::as_str).collect();
+            transfer_video_by_format_in_dir(
+                &dir_path,
+                &exts_refs,
+                &presets_vec,
+                remove_origin_file,
+                remove_existing_target_file,
+                false,
+            )
+            .await
+            .map_err(|e| (dir_path, anyhow::anyhow!("{e}")))
+        }));
+    }
+
+    let mut errors: Vec<(PathBuf, anyhow::Error)> = Vec::new();
+    for handle in handles {
+        match handle.await {
+            Ok(Ok(())) => {}
+            Ok(Err((dir, e))) => {
+                tracing::info!("Error occured in Dir: {dir:?}");
+                errors.push((dir, e));
+            }
+            Err(e) => {
+                return Err(std::io::Error::other(format!("Task join error: {e}")).into());
+            }
         }
+    }
+
+    if let Some((_, e)) = errors.into_iter().next() {
+        return Err(e.into());
     }
 
     Ok(())

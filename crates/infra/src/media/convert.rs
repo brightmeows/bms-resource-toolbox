@@ -49,6 +49,7 @@ pub enum OriginRemoval {
 }
 
 /// Options for controlling audio transfer behavior.
+#[derive(Debug, Clone)]
 pub struct TransferOptions {
     /// Policy for removing the original file.
     pub origin_removal: OriginRemoval,
