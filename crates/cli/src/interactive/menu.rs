@@ -37,7 +37,7 @@ fn build_menu() -> HashMap<usize, &'static dyn InteractiveCommand> {
     }
 
     print_msg!("");
-    print_msg!(" 0: 退出");
+    print_msg!(" 0: 退出（或 Ctrl+C）");
 
     map
 }
@@ -50,7 +50,6 @@ fn build_menu() -> HashMap<usize, &'static dyn InteractiveCommand> {
 pub async fn run_main_menu(yes: bool) -> Result<(), DomainError> {
     let session = Session { yes };
 
-    // Rebuild menu each iteration (static data, same result each time)
     loop {
         let cmd_map = build_menu();
 
@@ -61,20 +60,14 @@ pub async fn run_main_menu(yes: bool) -> Result<(), DomainError> {
 
         let input = match input {
             Ok(s) => s.trim().to_string(),
-            Err(inquire::InquireError::OperationCanceled) => {
-                print_msg!("再见！");
+            // Ctrl+C or any input error → exit
+            Err(_) => {
                 break;
             }
-            Err(_) => continue,
         };
 
-        if input.is_empty() {
-            continue;
-        }
-
-        // 0 or Ctrl+C → exit
-        if input == "0" {
-            print_msg!("再见！");
+        // Empty input or "0" → exit
+        if input.is_empty() || input == "0" {
             break;
         }
 
@@ -97,5 +90,6 @@ pub async fn run_main_menu(yes: bool) -> Result<(), DomainError> {
         }
     }
 
+    print_msg!("再见！");
     Ok(())
 }
