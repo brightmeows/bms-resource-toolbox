@@ -7,15 +7,17 @@ use bms_res_tb_domain::folder::rename;
 use bms_res_tb_domain::folder::scan;
 
 use crate::interactive::Session;
+use crate::interactive::history;
 use crate::interactive::output::print_msg;
+use crate::interactive::path_validate::{expand_tilde, validate_path};
 use crate::interactive::trait_def::InteractiveCommand;
-use crate::interactive::types::{ParamDef, ParamValue};
+use crate::interactive::types::{ParamDef, ParamValue, PathSemantic};
 
 // ── Rename ─────────────────────────────────────────────
 
 /// Rename folder by BMS info with mode selection.
 ///
-/// Combines "set" and "append" modes into one menu entry.
+/// Prompts mode first, then path — so the user knows what to fill in.
 pub struct Rename;
 
 #[async_trait]
@@ -25,16 +27,11 @@ impl InteractiveCommand for Rename {
     }
 
     fn params(&self) -> Vec<ParamDef> {
-        vec![ParamDef::root_dir("BMS 根目录")]
+        Vec::new()
     }
 
-    async fn execute(&self, args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
-        let path = args
-            .into_iter()
-            .next()
-            .expect("Rename: missing path")
-            .into_path();
-
+    async fn execute(&self, _args: Vec<ParamValue>, _session: Session) -> Result<(), DomainError> {
+        // Step 1: Select mode
         let modes = [
             "设置为「标题 [艺术家]」",
             "仅设置为标题",
@@ -43,13 +40,31 @@ impl InteractiveCommand for Rename {
             "追加标题",
             "追加 [艺术家]",
         ];
-        let Ok(selection) = inquire::Select::new("选择命名模式:", modes.to_vec()).prompt()
-        else {
+        let Ok(mode) = inquire::Select::new("选择命名模式:", modes.to_vec()).prompt() else {
             print_msg!("已取消。");
             return Ok(());
         };
 
-        match selection {
+        // Step 2: Prompt for path
+        let path = loop {
+            let Some(path_str) = history::prompt_with_history("BMS 根目录:") else {
+                print_msg!("已取消。");
+                return Ok(());
+            };
+            let trimmed = path_str.trim().to_string();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let expanded = expand_tilde(&trimmed);
+            if let Err(msg) = validate_path(&expanded, PathSemantic::RootDir) {
+                print_msg!("  ⚠ {msg}");
+                continue;
+            }
+            break expanded;
+        };
+
+        // Step 3: Execute
+        match mode {
             "设置为「标题 [艺术家]」" => rename::set_name_by_bms(&path).await,
             "仅设置为标题" => rename::set_title_by_bms(&path).await,
             "仅设置为艺术家" => rename::set_artist_by_bms(&path).await,
