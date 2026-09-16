@@ -19,7 +19,7 @@ jobs:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     steps:
       - name: Wait for all checks to pass
-        uses: poseidon/wait-for-status-checks@v0.6.0
+        uses: poseidon/wait-for-status-checks@v0.7.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           interval: 10s
