@@ -24,6 +24,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           interval: 10s
           timeout: 600s
+          # The AI reviewer posts an informational check whose neutral
+          # conclusion would otherwise block the gate.
+          ignore_pattern: "cubic"
 
       - name: Enable auto-merge
         run: |
